@@ -1,139 +1,139 @@
 // ============================================================
-// NidiRoom — lib/api.ts
-// Toutes les fonctions d'appel vers le backend Spring Boot
-// URL de base : http://localhost:8080 (Spring Boot par défaut)
+//  NidiRoom — lib/api.ts
+//  Toutes les fonctions d'appel vers le backend Spring Boot
+//  Base URL : http://localhost:8080  (Spring Boot par défaut)
 // ============================================================
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-// ── Types globaux ───────────────────── ─────────────────────
+// ── Types globaux ──────────────────────────────────────────
 
 export interface ApiResponse<T> {
-  données : T | nul ;
-  erreur : chaîne | null ;
-  statut : nombre ;
+  data: T | null;
+  error: string | null;
+  status: number;
 }
 
 export interface User {
-  id : numéro ;
-  nom : chaîne de caractères ;
-  prénom : chaîne de caractères ;
-  courriel : chaîne de caractères ;
-  rôle : "LOCATAIRE" | "CHAUDE" | « ADMINISTRATEUR » ;
-  téléphone ? : chaîne de caractères ;
-  photo ? : ficelle ;
-  twoFactorEnabled ? : booléen ;
+  id: number;
+  nom: string;
+  prenom: string;
+  email: string;
+  role: "LOCATAIRE" | "HOTE" | "ADMIN";
+  telephone?: string;
+  photo?: string;
+  twoFactorEnabled?: boolean;
 }
 
-interface d'exportation Annonce {
-  id : numéro ;
-  titre : chaîne de caractères ;
-  description : chaîne de caractères ;
-  ville : chaîne de caractères ;
-  adresse : chaîne de caractères ;
-  prix_par_nuit: nombre;
-  capacité : nombre ;
-  superficie ?: nombre ;
-  image_principale ?: chaîne de caractères ;
-  images ?: chaîne[] ;
-  note_moyenne ?: nombre ;
-  nombre_avis?: nombre;
-  hôtel ? : Utilisateur ;
-  latitude ? : nombre ;
-  longitude ? : nombre ;
-  disponible : booléen ;
+export interface Annonce {
+  id: number;
+  titre: string;
+  description: string;
+  ville: string;
+  adresse: string;
+  prix_par_nuit: number;
+  capacite: number;
+  superficie?: number;
+  image_principale?: string;
+  images?: string[];
+  note_moyenne?: number;
+  nombre_avis?: number;
+  hote?: User;
+  latitude?: number;
+  longitude?: number;
+  disponible: boolean;
 }
 
-export interface Réservation {
-  id : numéro ;
+export interface Reservation {
+  id: number;
   annonce: Annonce;
-  locataire : Utilisateur ;
-  date_début : chaîne de caractères ;
-  date_fin : chaîne de caractères ;
-  statut : "EN_ATTENTE" | "CONFIRMÉ" | "ANNULÉ" | « TERMINÉ » ;
-  montant_total : nombre ;
-  créé_à : chaîne de caractères ;
+  locataire: User;
+  date_debut: string;
+  date_fin: string;
+  statut: "EN_ATTENTE" | "CONFIRMEE" | "ANNULEE" | "TERMINEE";
+  montant_total: number;
+  created_at: string;
 }
 
-interface d'exportation Avis {
-  id : numéro ;
-  auteur : Utilisateur ;
-  annonce_id : numéro ;
-  note : nombre ;
-  commentaire : chaîne de caractères ;
-  créé_à : chaîne de caractères ;
+export interface Avis {
+  id: number;
+  auteur: User;
+  annonce_id: number;
+  note: number;
+  commentaire: string;
+  created_at: string;
 }
 
 export interface LoginPayload {
-  courriel : chaîne de caractères ;
-  mot_de_passe : chaîne de caractères ;
+  email: string;
+  mot_de_passe: string;
 }
 
 export interface RegisterPayload {
-  nom : chaîne de caractères ;
-  prénom : chaîne de caractères ;
-  courriel : chaîne de caractères ;
-  mot_de_passe : chaîne de caractères ;
-  rôle : "LOCATAIRE" | "HÔTE" ;
-  téléphone ? : chaîne de caractères ;
+  nom: string;
+  prenom: string;
+  email: string;
+  mot_de_passe: string;
+  role: "LOCATAIRE" | "HOTE";
+  telephone?: string;
 }
 
-interface d'exportation AnnoncePayload {
-  titre : chaîne de caractères ;
-  description : chaîne de caractères ;
-  ville : chaîne de caractères ;
-  adresse : chaîne de caractères ;
-  prix_par_nuit: nombre;
-  capacité : nombre ;
-  superficie ?: nombre ;
-  latitude ? : nombre ;
-  longitude ? : nombre ;
+export interface AnnoncePayload {
+  titre: string;
+  description: string;
+  ville: string;
+  adresse: string;
+  prix_par_nuit: number;
+  capacite: number;
+  superficie?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface ReservationPayload {
-  annonce_id : numéro ;
-  date_début : chaîne de caractères ;
-  date_fin : chaîne de caractères ;
+  annonce_id: number;
+  date_debut: string;
+  date_fin: string;
 }
 
 export interface SearchParams {
-  ville ?: chaîne de caractères ;
-  capacité ? : nombre ;
-  prix_max ? : nombre ;
-  prix_min?: nombre;
-  page ? : numéro ;
-  taille ? : nombre ;
+  ville?: string;
+  capacite?: number;
+  prix_max?: number;
+  prix_min?: number;
+  page?: number;
+  size?: number;
 }
 
-// ── Principal utilitaire ───────────────────────────────────
+// ── Utilitaire principal ───────────────────────────────────
 
 /**
  * Fonction fetch centralisée.
  * Ajoute automatiquement le token JWT si présent dans localStorage.
  */
-fonction asynchrone apiFetch<T>(
-  point de terminaison : chaîne de caractères,
+async function apiFetch<T>(
+  endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  // Récupère le token JWT stocké après connexion
-  jeton constant =
+  // Récupère le token JWT stocké après login
+  const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    ...(jeton ? { Autorisation : `Porteur ${jeton}` } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
-  essayer {
+  try {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
-      en-têtes,
+      headers,
     });
 
     // Token expiré ou invalide → déconnexion automatique
-    si (res.status === 401) {
-      si (typeof fenêtre !== "undefined") {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         window.location.href = "/login";
@@ -142,54 +142,54 @@ fonction asynchrone apiFetch<T>(
     }
 
     // Pas de contenu (DELETE, etc.)
-    si (res.status === 204) {
-      renvoie { données: null, erreur: null, statut: 204 };
+    if (res.status === 204) {
+      return { data: null, error: null, status: 204 };
     }
 
     const json = await res.json();
 
-    si (!res.ok) {
-      retour {
-        données : nulles,
-        erreur : json?.message || json?.erreur || "Une erreur est survenue.",
-        statut : res.status,
+    if (!res.ok) {
+      return {
+        data: null,
+        error: json?.message || json?.error || "Une erreur est survenue.",
+        status: res.status,
       };
     }
 
-    renvoie { données: json, erreur: null, statut: res.status };
-  } attraper (erreur) {
-    console.error("[Erreur API]", err);
-    retour {
-      données : nulles,
+    return { data: json, error: null, status: res.status };
+  } catch (err) {
+    console.error("[API Error]", err);
+    return {
+      data: null,
       error: "Impossible de joindre le serveur. Vérifiez que le backend est démarré.",
-      statut : 0,
+      status: 0,
     };
   }
 }
 
-// ════════════════════════════════════════════════════════
-// AUTH
-// ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════
 
-/** Connexion — retourner token JWT + infos utilisateur */
+/** Connexion — retourne token JWT + infos utilisateur */
 export async function login(payload: LoginPayload) {
   return apiFetch<{ token: string; user: User }>("/api/auth/login", {
-    méthode : « POST »,
-    corps : JSON.stringify(payload),
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 /** Inscription */
 export async function register(payload: RegisterPayload) {
   return apiFetch<{ token: string; user: User }>("/api/auth/register", {
-    méthode : « POST »,
-    corps : JSON.stringify(payload),
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 /** Profil de l'utilisateur connecté */
 export async function getMe() {
-  retourner apiFetch<User>("/api/auth/me");
+  return apiFetch<User>("/api/auth/me");
 }
 
 /** Déconnexion côté serveur (invalide le token si blacklist Redis) */
@@ -200,78 +200,78 @@ export async function logout() {
 /** Vérification du code 2FA */
 export async function verify2FA(code: string) {
   return apiFetch<{ token: string; user: User }>("/api/auth/2fa/verify", {
-    méthode : « POST »,
-    corps : JSON.stringify({ code }),
+    method: "POST",
+    body: JSON.stringify({ code }),
   });
 }
 
-// ════════════════════════════════════════════════════════
-// ANNONCES
-// ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  ANNONCES
+// ══════════════════════════════════════════════════════════
 
 /** Liste des annonces avec filtres optionnels */
 export async function getAnnonces(params?: SearchParams) {
-  const requête = paramètres
-    ? "?" + nouveaux paramètres de recherche d'URL(
-        Objet.entrées(paramètres)
+  const query = params
+    ? "?" + new URLSearchParams(
+        Object.entries(params)
           .filter(([, v]) => v !== undefined && v !== "")
           .map(([k, v]) => [k, String(v)])
       ).toString()
     : "";
-  return apiFetch<{ annonces: Annonce[]; total : nombre ; page : numéro }>(`/api/annonces${query}`);
+  return apiFetch<{ annonces: Annonce[]; total: number; page: number }>(`/api/annonces${query}`);
 }
 
 /** Détail d'une annonce */
-export async function getAnnonce(id: nombre) {
+export async function getAnnonce(id: number) {
   return apiFetch<Annonce>(`/api/annonces/${id}`);
 }
 
 /** Créer une annonce (HOTE seulement) */
 export async function createAnnonce(payload: AnnoncePayload) {
   return apiFetch<Annonce>("/api/annonces", {
-    méthode : « POST »,
-    corps : JSON.stringify(payload),
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 /** Modifier une annonce */
 export async function updateAnnonce(id: number, payload: Partial<AnnoncePayload>) {
   return apiFetch<Annonce>(`/api/annonces/${id}`, {
-    méthode : "PUT",
-    corps : JSON.stringify(payload),
+    method: "PUT",
+    body: JSON.stringify(payload),
   });
 }
 
 /** Supprimer une annonce */
-export async function deleteAnnonce(id: nombre) {
+export async function deleteAnnonce(id: number) {
   return apiFetch<void>(`/api/annonces/${id}`, { method: "DELETE" });
 }
 
 /** Uploader une image pour une annonce (MinIO) */
 export async function uploadAnnonceImage(id: number, file: File) {
-  jeton constant =
+  const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const formData = new FormData();
-  formData.append("image", fichier);
+  formData.append("image", file);
 
   const res = await fetch(`${BASE_URL}/api/annonces/${id}/images`, {
-    méthode : « POST »,
-    en-têtes : jeton ? { Authorization : `Bearer ${token}` } : {},
-    corps : formData,
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
   });
   const json = await res.json();
-  renvoie { données: json, erreur: res.ok ? null : json?.message, statut: res.status };
+  return { data: json, error: res.ok ? null : json?.message, status: res.status };
 }
 
-// ════════════════════════════════════════════════════════
-// RÉSERVATIONS
-// ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  RÉSERVATIONS
+// ══════════════════════════════════════════════════════════
 
 /** Créer une réservation */
 export async function createReservation(payload: ReservationPayload) {
   return apiFetch<Reservation>("/api/reservations", {
-    méthode : « POST »,
-    corps : JSON.stringify(payload),
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
@@ -282,52 +282,52 @@ export async function getMesReservations() {
 
 /** Réservations reçues (en tant qu'hôte) */
 export async function getReservationsRecues() {
-  retourner apiFetch<Reservation[]>("/api/reservations/recues");
+  return apiFetch<Reservation[]>("/api/reservations/recues");
 }
 
 /** Confirmer une réservation (HOTE) */
-export async function confirmerReservation(id: nombre) {
+export async function confirmerReservation(id: number) {
   return apiFetch<Reservation>(`/api/reservations/${id}/confirmer`, {
-    méthode : "PUT",
+    method: "PUT",
   });
 }
 
 /** Annuler une réservation */
-export async function annulerReservation(id: nombre) {
+export async function annulerReservation(id: number) {
   return apiFetch<Reservation>(`/api/reservations/${id}/annuler`, {
-    méthode : "PUT",
+    method: "PUT",
   });
 }
 
-// ════════════════════════════════════════════════════════
-// AVIS
-// ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  AVIS
+// ══════════════════════════════════════════════════════════
 
 /** Avis d'une annonce */
-export async function getAvis(annonceId: nombre) {
+export async function getAvis(annonceId: number) {
   return apiFetch<Avis[]>(`/api/annonces/${annonceId}/avis`);
 }
 
 /** Laisser un avis */
-exporter la fonction asynchrone créerAvis(
-  annonceId : numéro,
-  payload: { note: nombre; commentaire: chaîne de caractères }
+export async function createAvis(
+  annonceId: number,
+  payload: { note: number; commentaire: string }
 ) {
   return apiFetch<Avis>(`/api/annonces/${annonceId}/avis`, {
-    méthode : « POST »,
-    corps : JSON.stringify(payload),
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
-// ════════════════════════════════════════════════════════
-// PAIEMENTS
-// ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  PAIEMENTS
+// ══════════════════════════════════════════════════════════
 
 /** Initier un paiement pour une réservation */
-export async function initierPaiement(reservationId: nombre) {
-  renvoie apiFetch<{ payment_url: chaîne; reference: chaîne }>(
+export async function initierPaiement(reservationId: number) {
+  return apiFetch<{ payment_url: string; reference: string }>(
     `/api/paiements/initier/${reservationId}`,
-    { méthode: "POST" }
+    { method: "POST" }
   );
 }
 
@@ -338,18 +338,18 @@ export async function verifierPaiement(reference: string) {
   );
 }
 
-// ════════════════════════════════════════════════════════
-// NOTIFICATIONS
-// ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  NOTIFICATIONS
+// ══════════════════════════════════════════════════════════
 
 /** Récupérer les notifications de l'utilisateur */
 export async function getNotifications() {
-  return apiFetch<{ id: nombre; message: chaîne; lu: booléen; created_at: chaîne }[]>(
+  return apiFetch<{ id: number; message: string; lu: boolean; created_at: string }[]>(
     "/api/notifications"
   );
 }
 
-/** Marquer une notification comme lu */
-export async function marquerNotificationLue(id: nombre) {
+/** Marquer une notification comme lue */
+export async function marquerNotificationLue(id: number) {
   return apiFetch<void>(`/api/notifications/${id}/lire`, { method: "PUT" });
 }
