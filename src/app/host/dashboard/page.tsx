@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  getAnnonces, getReservationsRecues,
+  getMesAnnonces, getReservationsRecues,
   confirmerReservation, annulerReservation,
   deleteAnnonce, Annonce, Reservation,
 } from "@/lib/api";
@@ -109,8 +109,8 @@ function AnnonceRow({
       {/* Image */}
       <div className="w-full sm:w-20 h-16 rounded-xl overflow-hidden
                       bg-gray-100 flex-shrink-0">
-        {annonce.image_principale ? (
-          <img src={annonce.image_principale} alt={annonce.titre}
+        {annonce.images && annonce.images.length > 0 ? (
+          <img src={annonce.images[0]} alt={annonce.titre}
                className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-2xl
@@ -125,7 +125,7 @@ function AnnonceRow({
         </p>
         <p className="text-xs text-gray-400 mt-0.5">
           📍 {annonce.ville} · 👤 {annonce.capacite} pers. ·{" "}
-          {Number(annonce.prix_par_nuit).toLocaleString("fr-FR")} FCFA/nuit
+          {Number(annonce.prix).toLocaleString("fr-FR")} €/nuit
         </p>
       </div>
 
@@ -145,7 +145,7 @@ function AnnonceRow({
                      transition-colors">
           Voir
         </Link>
-        <Link href={`/host/annonces/${annonce.id}/edit`}
+        <Link href={`/host/listings/${annonce.id}/edit`}
           className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700
                      font-medium px-3 py-1.5 rounded-xl transition-colors">
           Modifier
@@ -301,10 +301,10 @@ export default function HostDashboardPage() {
     async function load() {
       setLoading(true);
       const [resAnnonces, resReservations] = await Promise.all([
-        getAnnonces(),
+        getMesAnnonces(),
         getReservationsRecues(),
       ]);
-      if (resAnnonces.data)     setAnnonces(resAnnonces.data.annonces ?? []);
+      if (resAnnonces.data)     setAnnonces(resAnnonces.data ?? []);
       if (resReservations.data) setReservations(resReservations.data ?? []);
       setLoading(false);
     }
@@ -393,7 +393,7 @@ export default function HostDashboardPage() {
             Bienvenue, {user?.prenom} 👋 — Espace hôte
           </p>
         </div>
-        <Link href="/host/annonces/new"
+        <Link href="/host/listings/create"
           className="bg-red-500 hover:bg-red-600 text-white font-bold
                      px-5 py-2.5 rounded-xl text-sm transition-colors
                      flex items-center gap-2">
@@ -498,7 +498,7 @@ export default function HostDashboardPage() {
                       <p className="text-xs text-red-600">Gérer mes annonces</p>
                     </div>
                   </button>
-                  <Link href="/host/annonces/new"
+                  <Link href="/host/listings/create"
                     className="flex items-center gap-3 p-4 bg-green-50 rounded-xl
                                border border-green-200 hover:bg-green-100
                                transition-colors">
@@ -524,7 +524,7 @@ export default function HostDashboardPage() {
             <p className="text-sm text-gray-500">
               {annonces.length} annonce{annonces.length > 1 ? "s" : ""} publiée{annonces.length > 1 ? "s" : ""}
             </p>
-            <Link href="/host/annonces/new"
+            <Link href="/host/listings/create"
               className="bg-red-500 hover:bg-red-600 text-white font-bold
                          px-4 py-2 rounded-xl text-xs transition-colors">
               ＋ Ajouter
@@ -550,7 +550,7 @@ export default function HostDashboardPage() {
               <p className="text-gray-400 text-sm mb-6">
                 Publiez votre première chambre et commencez à recevoir des réservations.
               </p>
-              <Link href="/host/annonces/new"
+              <Link href="/host/listings/create"
                 className="inline-block bg-red-500 hover:bg-red-600 text-white
                            font-bold px-6 py-3 rounded-full text-sm transition-colors">
                 Publier ma première annonce

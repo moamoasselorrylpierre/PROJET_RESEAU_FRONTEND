@@ -141,16 +141,11 @@ export default function ListingDetailPage() {
   }, [id]); // eslint-disable-line
 
   // ── Toutes les photos ──────────────────────────────────
-  const photos = annonce
-    ? [
-        ...(annonce.image_principale ? [annonce.image_principale] : []),
-        ...(annonce.images ?? []),
-      ]
-    : [];
+  const photos = annonce?.images ?? [];
 
   // ── Montant total calculé ──────────────────────────────
   const nuits = dateDebut && dateFin ? diffJours(dateDebut, dateFin) : 0;
-  const montantTotal = nuits * (annonce?.prix_par_nuit ?? 0);
+  const montantTotal = nuits * (annonce?.prix ?? 0);
 
   // ══════════════════════════════════════════════════════
   //  SOUMISSION RÉSERVATION
@@ -200,7 +195,7 @@ export default function ListingDetailPage() {
     }
 
     setAvisLoading(true);
-    const { data, error } = await createAvis(Number(id), { note, commentaire });
+    const { data, error } = await createAvis({ annonce_id: Number(id), note, commentaire });
     setAvisLoading(false);
 
     if (error || !data) {

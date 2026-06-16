@@ -27,21 +27,23 @@ export interface User {
 
 export interface Annonce {
   id: number;
+  hote_id: number;
   titre: string;
-  description: string;
+  description?: string;
   ville: string;
-  adresse: string;
-  prix_par_nuit: number;
+  quartier?: string;
+  adresse?: string;
+  prix: number;
   capacite: number;
-  superficie?: number;
-  image_principale?: string;
   images?: string[];
-  note_moyenne?: number;
-  nombre_avis?: number;
-  hote?: User;
-  latitude?: number;
-  longitude?: number;
   disponible: boolean;
+  note_moyenne?: number;
+  nb_avis?: number;
+  nb_reservations?: number;
+  hote_nom?: string;
+  hote_prenom?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Reservation {
@@ -81,14 +83,12 @@ export interface RegisterPayload {
 
 export interface AnnoncePayload {
   titre: string;
-  description: string;
+  description?: string;
   ville: string;
-  adresse: string;
-  prix_par_nuit: number;
+  quartier?: string;
+  adresse?: string;
+  prix: number;
   capacite: number;
-  superficie?: number;
-  latitude?: number;
-  longitude?: number;
 }
 
 export interface ReservationPayload {
@@ -229,7 +229,7 @@ export async function logout() {
 //  ANNONCES
 // ══════════════════════════════════════════════════════════
 
-/** Liste des annonces avec filtres optionnels */
+/** Liste des annonces avec filtres optionnels (publique) */
 export async function getAnnonces(params?: SearchParams) {
   const query = params
     ? "?" + new URLSearchParams(
@@ -238,7 +238,12 @@ export async function getAnnonces(params?: SearchParams) {
           .map(([k, v]) => [k, String(v)])
       ).toString()
     : "";
-  return apiFetch<{ annonces: Annonce[]; total: number; page: number }>(`/api/annonces${query}`);
+  return apiFetch<{ annonces: Annonce[]; pagination: { total: number; page: number; limit: number; total_pages: number } }>(`/api/annonces${query}`);
+}
+
+/** Mes annonces (HOTE) */
+export async function getMesAnnonces() {
+  return apiFetch<Annonce[]>("/api/annonces/mes-annonces");
 }
 
 /** Détail d'une annonce */
@@ -248,7 +253,7 @@ export async function getAnnonce(id: number) {
 
 /** Créer une annonce (HOTE seulement) */
 export async function createAnnonce(payload: AnnoncePayload) {
-  return apiFetch<Annonce>("/api/annonces", {
+  return apiFetch<{ message: string; annonce: Annonce }>("/api/annonces", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -256,7 +261,7 @@ export async function createAnnonce(payload: AnnoncePayload) {
 
 /** Modifier une annonce */
 export async function updateAnnonce(id: number, payload: Partial<AnnoncePayload>) {
-  return apiFetch<Annonce>(`/api/annonces/${id}`, {
+  return apiFetch<{ message: string; annonce: Annonce }>(`/api/annonces/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -264,10 +269,10 @@ export async function updateAnnonce(id: number, payload: Partial<AnnoncePayload>
 
 /** Supprimer une annonce */
 export async function deleteAnnonce(id: number) {
-  return apiFetch<void>(`/api/annonces/${id}`, { method: "DELETE" });
+  return apiFetch<{ message: string }>(`/api/annonces/${id}`, { method: "DELETE" });
 }
 
-/** Uploader une image pour une annonce (MinIO) */
+/** Uploader une image pour une annonce */
 export async function uploadAnnonceImage(id: number, file: File) {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -281,6 +286,13 @@ export async function uploadAnnonceImage(id: number, file: File) {
   });
   const json = await res.json();
   return { data: json, error: res.ok ? null : json?.message, status: res.status };
+}
+
+/** Supprimer une image d'une annonce */
+export async function deleteAnnonceImage(id: number, imageId: number) {
+  return apiFetch<{ message: string }>(`/api/annonces/${id}/images/${imageId}`, {
+    method: "DELETE",
+  });
 }
 
 // ══════════════════════════════════════════════════════════
