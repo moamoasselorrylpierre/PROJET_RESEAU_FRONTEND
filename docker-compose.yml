@@ -20,7 +20,7 @@
 services:
 
   # ══════════════════════════════════════════════════════════
-  #  POSTGRESQL 18 — Base de données principale
+  #  POSTGRESQL 16 — Base de données principale
   # ══════════════════════════════════════════════════════════
   postgres:
     image: postgres:16-alpine
@@ -34,8 +34,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Script d'initialisation (créer les extensions PostGIS si besoin)
-      - ./backend/src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nidiroom_user -d nidiroom_db"]
       interval: 10s
@@ -140,7 +138,7 @@ services:
       - nidiroom_net
 
   # ══════════════════════════════════════════════════════════
-  #  BACKEND — Spring Boot 4.0 / Java 21
+  #  BACKEND — Node.js / Express
   # ══════════════════════════════════════════════════════════
   backend:
     build:
@@ -158,18 +156,23 @@ services:
       minio:
         condition: service_started
     environment:
-      # Base de données
-      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/nidiroom_db
-      SPRING_DATASOURCE_USERNAME: nidiroom_user
-      SPRING_DATASOURCE_PASSWORD: nidiroom_pass
+      PORT: 8080
+      NODE_ENV: production
+      
+      # Base de données (mappé exactement sur db.js)
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: nidiroom_db
+      DB_USER: nidiroom_user
+      DB_PASSWORD: nidiroom_pass
 
       # Redis
-      SPRING_REDIS_HOST:     redis
-      SPRING_REDIS_PORT:     6379
-      SPRING_REDIS_PASSWORD: nidiroom_redis_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: nidiroom_redis_pass
 
       # Kafka
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
 
       # MinIO
       MINIO_ENDPOINT:   http://minio:9000
@@ -178,21 +181,16 @@ services:
       MINIO_BUCKET:     nidiroom-images
 
       # JWT
-      JWT_SECRET:     ${JWT_SECRET:-nidiroom_super_secret_jwt_key_2024_change_in_prod}
-      JWT_EXPIRATION: 86400000
-
-      # App
-      SPRING_PROFILES_ACTIVE: docker
-      SERVER_PORT:            8080
-
+      JWT_SECRET: ${JWT_SECRET:-nidiroom_super_secret_jwt_key_2024_change_in_prod}
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      # Test réseau direct sur le port Node.js (ne dépend pas de Spring)
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - nidiroom_net
 
@@ -233,7 +231,7 @@ services:
     networks:
       - nidiroom_net
     profiles:
-      - tools   # Démarrer avec : docker compose --profile tools up
+      - tools
 
 # ══════════════════════════════════════════════════════════
 #  VOLUMES PERSISTANTS
