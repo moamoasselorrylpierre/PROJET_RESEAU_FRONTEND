@@ -14,7 +14,8 @@ type Onglet = "infos" | "securite" | "2fa";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-function authHeader() {
+// ── Fonctions Utilitaires (Placées en haut, hors des composants) ──
+function authHeader(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -63,9 +64,8 @@ function Spinner() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  PAGE
+//  COMPOSANT PRINCIPAL
 // ════════════════════════════════════════════════════════════
-
 export default function ProfilePage() {
   const router = useRouter();
   const { isAuthenticated, clearSession } = useAuth();
@@ -87,7 +87,7 @@ export default function ProfilePage() {
   const [confirmPwd, setConfirmPwd] = useState("");
   const [showPwds,   setShowPwds]   = useState(false);
   const [pwdSaving,  setPwdSaving]  = useState(false);
-  const [pwdErrors,  setPwdErrors]  = useState<Record<string,string>>({});
+  const [pwdErrors,  setPwdErrors]  = useState<Record<string, string>>({});
 
   // 2FA
   const [qrCode,       setQrCode]       = useState<string|null>(null);
@@ -118,7 +118,10 @@ export default function ProfilePage() {
     try {
       const res = await fetch(`${API}/api/utilisateurs/me`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { 
+          "Content-Type": "application/json", 
+          ...authHeader() 
+        },
         body: JSON.stringify({ prenom, nom, telephone }),
       });
       if (!res.ok) throw new Error();
@@ -132,7 +135,7 @@ export default function ProfilePage() {
 
   // ── Changer mot de passe ────────────────────────────────
   function validatePwd(): boolean {
-    const e: Record<string,string> = {};
+    const e: Record<string, string> = {};
     if (!ancienPwd)                          e.ancien  = "Mot de passe actuel requis.";
     if (!nouveauPwd)                         e.nouveau = "Nouveau mot de passe requis.";
     else if (nouveauPwd.length < 8)          e.nouveau = "Minimum 8 caractères.";
@@ -224,7 +227,7 @@ export default function ProfilePage() {
     } catch { showToast("Erreur suppression compte.", "error"); }
   }
 
-  // ── Squelette ───────────────────────────────────────────
+  // ── Squelette de chargement ─────────────────────────────
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10 space-y-4">
@@ -237,7 +240,7 @@ export default function ProfilePage() {
   }
   if (!profil) return null;
 
-  // ── Rendu ───────────────────────────────────────────────
+  // ── Rendu UI ────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
       <h1 className="font-playfair text-3xl md:text-4xl font-bold text-gray-900 mb-6">
@@ -327,7 +330,7 @@ export default function ProfilePage() {
             <h2 className="font-bold text-gray-800 text-lg">Changer le mot de passe</h2>
 
             {[
-              { label: "Mot de passe actuel",          val: ancienPwd,  setVal: setAncienPwd,  err: pwdErrors.ancien  },
+              { label: "Mot de passe actuel",         val: ancienPwd,  setVal: setAncienPwd,  err: pwdErrors.ancien  },
               { label: "Nouveau mot de passe",         val: nouveauPwd, setVal: setNouveauPwd, err: pwdErrors.nouveau },
               { label: "Confirmer le nouveau",         val: confirmPwd, setVal: setConfirmPwd, err: pwdErrors.confirm,
                 border: confirmPwd && confirmPwd === nouveauPwd ? "border-green-400" : undefined },

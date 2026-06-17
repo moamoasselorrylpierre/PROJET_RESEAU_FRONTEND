@@ -2,7 +2,6 @@
 // ============================================================
 //  NidiRoom — contexts/AuthContext.tsx
 //  Fournit l'état de session à toute l'application
-//  Connecte aussi le WebSocket dès que l'utilisateur se connecte
 // ============================================================
 
 import {
@@ -13,8 +12,12 @@ import {
   useCallback,
   ReactNode,
 } from "react";
+
+// User vient de api.ts (source unique de vérité)
+import { User, logout as apiLogout } from "@/lib/api";
+
+// Les helpers de stockage viennent de auth.ts
 import {
-  User,
   getUser,
   getToken,
   saveToken,
@@ -23,34 +26,32 @@ import {
   removeUser,
   isTokenExpired,
 } from "@/lib/auth";
+
 import { socketService } from "@/lib/socket";
-import { logout as apiLogout } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────
 
 interface AuthContextType {
-  user: User | null;
-  token: string | null;
+  user:            User | null;
+  token:           string | null;
   isAuthenticated: boolean;
-  isLoading: boolean;
-  setSession: (token: string, user: User) => void;
-  clearSession: () => Promise<void>;
+  isLoading:       boolean;
+  setSession:      (token: string, user: User) => void;
+  clearSession:    () => Promise<void>;
 }
 
-// ── Création du contexte ───────────────────────────────────
+// ── Contexte ───────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 // ── Provider ───────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser]               = useState<User | null>(null);
-  const [token, setToken]             = useState<string | null>(null);
-  const [isLoading, setIsLoading]     = useState(true);
+  const [user,      setUser]      = useState<User | null>(null);
+  const [token,     setToken]     = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // ── Initialisation au montage ────────────────────────────
-  // Lit le localStorage et restaure la session si token valide
-
+  // Restaure la session au montage
   useEffect(() => {
     const storedToken = getToken();
     const storedUser  = getUser();
@@ -58,41 +59,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedToken && storedUser && !isTokenExpired()) {
       setToken(storedToken);
       setUser(storedUser);
-
-      // Reconnexion WebSocket au rechargement de page
       socketService.connect(storedUser.id).catch(() => {
         console.warn("[AuthContext] WebSocket non disponible au démarrage");
       });
     } else {
-      // Token expiré → nettoyage
       removeToken();
       removeUser();
     }
-
     setIsLoading(false);
   }, []);
 
-  // ── Sauvegarder une session (après login / register) ─────
-
+  // Sauvegarder une session après login / register
   const setSession = useCallback((newToken: string, newUser: User) => {
     saveToken(newToken);
     saveUser(newUser);
     setToken(newToken);
     setUser(newUser);
-
-    // Connexion WebSocket immédiate après login
     socketService.connect(newUser.id).catch(() => {
       console.warn("[AuthContext] WebSocket non disponible");
     });
   }, []);
 
-  // ── Effacer la session (déconnexion) ─────────────────────
-
+  // Effacer la session (déconnexion)
   const clearSession = useCallback(async () => {
     try {
-      await apiLogout(); // invalide le token dans Redis
+      await apiLogout();
     } catch {
-      // Déconnexion côté client même si le serveur est indisponible
+      // Déconnexion côté client même si serveur indisponible
     } finally {
       socketService.disconnect();
       removeToken();
@@ -118,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// ── Hook d'accès au contexte ──────────────────────────────
+// ── Hook ───────────────────────────────────────────────────
 
 export function useAuth(): AuthContextType {
   const ctx = useContext(AuthContext);
