@@ -8,6 +8,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      colors: {
+        kamerTeal: '#0f4c4a',
+        kamerGold: '#d39e4f',
+        kamerDark: '#082b2a',
+      },
       fontFamily: {
         playfair: ["var(--font-playfair)", "serif"],
         inter:    ["var(--font-inter)",    "sans-serif"],

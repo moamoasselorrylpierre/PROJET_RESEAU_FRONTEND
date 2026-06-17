@@ -1,51 +1,67 @@
 /* ============================================================
-   NidiRoom — app/globals.css
-   Styles globaux + variables CSS + animations personnalisées
+   KamerStay — app/globals.css  (Tailwind v4)
+   Thème luxe « forêt / or / ivoire » + polices + animations
    ============================================================ */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* ── Variables CSS ── */
-:root {
-  --primary:      #FF385C;
-  --primary-dark: #D90B30;
-  --font-inter:    'Inter', sans-serif;
-  --font-playfair: 'Playfair Display', serif;
+/* ── Polices Google (Cormorant Garamond, DM Sans, Playfair Display) ── */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600;1,700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap');
+
+/* ── Tokens du thème (exposés en utilitaires Tailwind : bg-forest, text-gold…) ── */
+@theme {
+  --color-forest:        #1A3C2E;
+  --color-forest-light:  #2A5C44;
+  --color-gold:          #C9943A;
+  --color-gold-light:    #D9A84A;
+  --color-ivory:         #F7F3EC;
+  --color-charcoal:      #1C1C1C;
+  --color-terracotta:    #C4622D;
+  --color-sand:          #E8DCCC;
+
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body:    'DM Sans', system-ui, sans-serif;
+  --font-accent:  'Playfair Display', Georgia, serif;
 }
 
 /* ── Base ── */
-@layer base {
-  html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; }
 
-  body {
-    font-family: var(--font-inter);
-    -webkit-font-smoothing: antialiased;
-  }
-
-  .font-playfair { font-family: var(--font-playfair); }
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: #F7F3EC;
+  color: #1C1C1C;
+  -webkit-font-smoothing: antialiased;
 }
+
+.font-display { font-family: 'Cormorant Garamond', Georgia, serif; }
+.font-accent  { font-family: 'Playfair Display', Georgia, serif; }
+.font-body    { font-family: 'DM Sans', system-ui, sans-serif; }
 
 /* ── Animations ── */
-@layer utilities {
-  @keyframes fade-in-up {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes shimmer {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  .animate-fade-in-up {
-    animation: fade-in-up 0.3s ease forwards;
-  }
-
-  .skeleton {
-    background: linear-gradient(90deg, #e8e8e8 25%, #f5f5f5 50%, #e8e8e8 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite;
-  }
+@keyframes bounce-cue {
+  0%, 100% { transform: translateY(0) translateX(-50%); }
+  50%      { transform: translateY(-8px) translateX(-50%); }
 }
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.animate-fade-in-up { animation: fade-in-up 0.3s ease forwards; }
+
+.skeleton {
+  background: linear-gradient(90deg, #e8ddcc 25%, #f5efe4 50%, #e8ddcc 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+/* Masquer la scrollbar des carrousels horizontaux */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

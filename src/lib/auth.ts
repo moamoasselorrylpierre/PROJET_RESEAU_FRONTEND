@@ -1,5 +1,5 @@
 // ============================================================
-//  NidiRoom — lib/auth.ts
+//  KamerStay — lib/auth.ts
 //  Gestion de la session JWT et du stockage
 //  Utilisé par toutes les pages protégées
 // ============================================================
@@ -25,7 +25,7 @@ export interface RegisterPayload {
   email: string;
   mot_de_passe: string;
   role: "CLIENT" | "HOTE";
-  telephone?: string;
+  raison_sociale?: string;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -137,17 +137,11 @@ export async function signUp(
  * 2. Redirige vers /login
  */
 export async function signOut(): Promise<void> {
-  try {
-    // Optionnel: appeler le backend pour nettoyer côté serveur
-    await apiLogout();
-  } catch {
-    // Même si le serveur est indisponible, on déconnecte côté client
-  } finally {
-    removeToken();
-    removeUser();
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
+  // Le backend Node n'invalide pas les tokens : on nettoie côté client.
+  removeToken();
+  removeUser();
+  if (typeof window !== "undefined") {
+    window.location.href = "/login";
   }
 }
 

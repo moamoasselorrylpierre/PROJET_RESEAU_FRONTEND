@@ -1,6 +1,6 @@
 "use client";
 // ============================================================
-//  NidiRoom — contexts/ToastContext.tsx
+//  KamerStay — contexts/ToastContext.tsx
 //  Système de notifications toast global (succès / erreur / info)
 // ============================================================
 

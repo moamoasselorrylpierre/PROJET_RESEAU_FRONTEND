@@ -1,6 +1,6 @@
 "use client";
 // ============================================================
-//  NidiRoom — app/listings/page.tsx
+//  KamerStay — app/listings/page.tsx
 //  Liste des annonces : filtres, recherche, pagination
 // ============================================================
 

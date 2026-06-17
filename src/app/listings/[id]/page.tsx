@@ -1,6 +1,6 @@
 "use client";
 // ============================================================
-//  NidiRoom — app/listings/[id]/page.tsx
+//  KamerStay — app/listings/[id]/page.tsx
 //  Détail d'une annonce : infos, galerie, avis, réservation
 // ============================================================
 

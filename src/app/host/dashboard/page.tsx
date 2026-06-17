@@ -1,617 +1,194 @@
 "use client";
 // ============================================================
-//  NidiRoom — app/host/dashboard/page.tsx
-//  Tableau de bord hôte : statistiques, annonces, réservations
+//  KamerStay — app/host/dashboard/page.tsx  (Espace hôte)
+//  Mes annonces (CRUD) + réservations reçues (refuser / annuler).
 // ============================================================
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Plus, Pencil, Trash2, MapPin, Users, Star, Calendar, Home, CalendarRange } from "lucide-react";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
+import { formatFCFA } from "@/data/rooms";
+import { imageUrl } from "@/lib/images";
 import {
-  getMesAnnonces, getReservationsRecues,
-  confirmerReservation, annulerReservation,
-  deleteAnnonce, Annonce, Reservation,
+  getMesAnnonces, deleteAnnonce, getReservationsHote, refuserReservation, annulerReservation,
+  type Annonce, type Reservation, type StatutReservation,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
-import { useSocket } from "@/lib/socket";
 
-// ══════════════════════════════════════════════════════════
-//  TYPES ONGLETS
-// ══════════════════════════════════════════════════════════
-
-type Onglet = "stats" | "annonces" | "reservations";
-
-// ══════════════════════════════════════════════════════════
-//  UTILITAIRES
-// ══════════════════════════════════════════════════════════
-
-type Statut = Reservation["statut"];
-
-const STATUT_CONFIG: Record<Statut, { label: string; color: string; icon: string }> = {
-  EN_ATTENTE: { label: "En attente", color: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: "⏳" },
-  CONFIRMEE:  { label: "Confirmée",  color: "bg-green-100 text-green-800 border-green-200",   icon: "✅" },
-  ANNULEE:    { label: "Annulée",    color: "bg-red-100 text-red-700 border-red-200",          icon: "❌" },
-  TERMINEE:   { label: "Terminée",   color: "bg-gray-100 text-gray-600 border-gray-200",       icon: "🏁" },
+const STATUTS: Record<StatutReservation, { label: string; color: string; bg: string }> = {
+  EN_ATTENTE: { label: "En attente", color: "#9A6B00", bg: "#FCEFC7" },
+  CONFIRMEE:  { label: "Confirmée", color: "#1A3C2E", bg: "#D7EBDD" },
+  TERMINEE:   { label: "Terminée", color: "#3A3A3A", bg: "#E8E2D6" },
+  ANNULEE:    { label: "Annulée", color: "#A12A12", bg: "#F7D9D0" },
+  REFUSEE:    { label: "Refusée", color: "#A12A12", bg: "#F7D9D0" },
 };
 
-function StatutBadge({ statut }: { statut: Statut }) {
-  const cfg = STATUT_CONFIG[statut];
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
-                      text-xs font-bold border ${cfg.color}`}>
-      {cfg.icon} {cfg.label}
-    </span>
-  );
+function fmtDate(d?: string) {
+  return d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 }
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("fr-FR", {
-    day: "numeric", month: "short", year: "numeric",
-  });
-}
-
-function diffJours(debut: string, fin: string) {
-  return Math.max(1, Math.ceil(
-    (new Date(fin).getTime() - new Date(debut).getTime()) / 86400000
-  ));
-}
-
-// ══════════════════════════════════════════════════════════
-//  COMPOSANT CARTE STAT
-// ══════════════════════════════════════════════════════════
-
-function StatCard({
-  icon, label, value, sub, color,
-}: {
-  icon: string; label: string; value: string | number;
-  sub?: string; color: string;
-}) {
-  return (
-    <div className={`bg-white rounded-2xl p-6 border border-gray-100
-                     shadow-sm flex items-start gap-4`}>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center
-                       text-2xl flex-shrink-0 ${color}`}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
-          {label}
-        </p>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  COMPOSANT CARTE ANNONCE (version dashboard)
-// ══════════════════════════════════════════════════════════
-
-function AnnonceRow({
-  annonce, onDelete,
-}: {
-  annonce: Annonce; onDelete: (id: number) => void;
-}) {
-  const [deleting, setDeleting] = useState(false);
-
-  async function handleDelete() {
-    if (!window.confirm(`Supprimer "${annonce.titre}" ?`)) return;
-    setDeleting(true);
-    onDelete(annonce.id);
-  }
-
-  return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center
-                    gap-4 p-4 bg-white rounded-2xl border border-gray-100
-                    shadow-sm hover:shadow-md transition-shadow">
-      {/* Image */}
-      <div className="w-full sm:w-20 h-16 rounded-xl overflow-hidden
-                      bg-gray-100 flex-shrink-0">
-        {annonce.images && annonce.images.length > 0 ? (
-          <img src={annonce.images[0]} alt={annonce.titre}
-               className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-2xl
-                          bg-gradient-to-br from-red-50 to-orange-50">🏠</div>
-        )}
-      </div>
-
-      {/* Infos */}
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 text-sm truncate">
-          {annonce.titre}
-        </p>
-        <p className="text-xs text-gray-400 mt-0.5">
-          📍 {annonce.ville} · 👤 {annonce.capacite} pers. ·{" "}
-          {Number(annonce.prix).toLocaleString("fr-FR")} €/nuit
-        </p>
-      </div>
-
-      {/* Disponibilité */}
-      <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0
-                        ${annonce.disponible
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-500"}`}>
-        {annonce.disponible ? "✅ Disponible" : "⏸ Pausée"}
-      </span>
-
-      {/* Actions */}
-      <div className="flex gap-2 flex-shrink-0">
-        <Link href={`/listings/${annonce.id}`}
-          className="text-xs border border-gray-200 hover:border-gray-400
-                     text-gray-600 font-medium px-3 py-1.5 rounded-xl
-                     transition-colors">
-          Voir
-        </Link>
-        <Link href={`/host/listings/${annonce.id}/edit`}
-          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700
-                     font-medium px-3 py-1.5 rounded-xl transition-colors">
-          Modifier
-        </Link>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="text-xs bg-red-50 hover:bg-red-100 text-red-600
-                     font-medium px-3 py-1.5 rounded-xl transition-colors
-                     disabled:opacity-50">
-          {deleting ? "…" : "Supprimer"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  COMPOSANT LIGNE RÉSERVATION (version dashboard hôte)
-// ══════════════════════════════════════════════════════════
-
-function ReservationRow({
-  reservation, onConfirmer, onAnnuler, actionLoading,
-}: {
-  reservation:   Reservation;
-  onConfirmer:   (id: number) => void;
-  onAnnuler:     (id: number) => void;
-  actionLoading: number | null;
-}) {
-  const { statut, annonce } = reservation;
-  const isLoading = actionLoading === reservation.id;
-  const nuits = diffJours(reservation.date_debut, reservation.date_fin);
-
-  return (
-    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm
-                     overflow-hidden transition-shadow hover:shadow-md
-                     ${statut === "ANNULEE" ? "opacity-60" : ""}`}>
-      <div className={`h-1 w-full
-        ${statut === "CONFIRMEE"  ? "bg-green-400"  : ""}
-        ${statut === "EN_ATTENTE" ? "bg-yellow-400" : ""}
-        ${statut === "ANNULEE"    ? "bg-red-400"    : ""}
-        ${statut === "TERMINEE"   ? "bg-gray-300"   : ""}`}
-      />
-      <div className="p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-          <div>
-            <p className="font-semibold text-gray-900 text-sm">
-              {reservation.annonce?.titre ?? "—"}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Locataire :{" "}
-              <span className="font-medium text-gray-600">
-                {reservation.locataire?.prenom} {reservation.locataire?.nom}
-              </span>
-              {reservation.locataire?.email && (
-                <span className="ml-1 text-gray-400">
-                  · {reservation.locataire.email}
-                </span>
-              )}
-            </p>
-          </div>
-          <StatutBadge statut={statut} />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 mb-3">
-          <span>📅 {formatDate(reservation.date_debut)} → {formatDate(reservation.date_fin)}</span>
-          <span>🌙 {nuits} nuit{nuits > 1 ? "s" : ""}</span>
-          <span className="font-semibold text-gray-800">
-            💰 {Number(reservation.montant_total).toLocaleString("fr-FR")} FCFA
-          </span>
-        </div>
-
-        {/* Actions hôte */}
-        {statut === "EN_ATTENTE" && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => onConfirmer(reservation.id)}
-              disabled={isLoading}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300
-                         text-white font-bold px-4 py-2 rounded-xl text-xs
-                         transition-colors flex items-center gap-1.5">
-              {isLoading ? (
-                <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10"
-                          stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor"
-                        d="M4 12a8 8 0 018-8v8H4z"/>
-                </svg>Traitement…</>
-              ) : <>✅ Confirmer</>}
-            </button>
-            <button
-              onClick={() => onAnnuler(reservation.id)}
-              disabled={isLoading}
-              className="border border-red-200 hover:bg-red-50 text-red-600
-                         font-medium px-4 py-2 rounded-xl text-xs
-                         transition-colors disabled:opacity-50">
-              {isLoading ? "…" : "❌ Refuser"}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  SQUELETTES
-// ══════════════════════════════════════════════════════════
-
-function SkeletonStat() {
-  return (
-    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm
-                    flex items-start gap-4">
-      <div className="w-12 h-12 skeleton rounded-xl flex-shrink-0" />
-      <div className="flex-1 space-y-2">
-        <div className="h-3 skeleton rounded w-1/2" />
-        <div className="h-7 skeleton rounded w-1/3" />
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  PAGE PRINCIPALE
-// ══════════════════════════════════════════════════════════
 
 export default function HostDashboardPage() {
-  const router              = useRouter();
-  const { user, isAuthenticated } = useAuth();
-  const { showToast }       = useToast();
+  const router = useRouter();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const { showToast } = useToast();
 
-  const [onglet,        setOnglet]        = useState<Onglet>("stats");
-  const [annonces,      setAnnonces]      = useState<Annonce[]>([]);
-  const [reservations,  setReservations]  = useState<Reservation[]>([]);
-  const [loading,       setLoading]       = useState(true);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
-  const [filtreRes,     setFiltreRes]     = useState<Statut | "TOUT">("TOUT");
+  const [tab, setTab] = useState<"annonces" | "reservations">("annonces");
+  const [annonces, setAnnonces] = useState<Annonce[]>([]);
+  const [resas, setResas] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // ── Garde : hôte connecté uniquement ──────────────────
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [a, r] = await Promise.all([getMesAnnonces(), getReservationsHote()]);
+    setAnnonces(a.data || []);
+    setResas(r.data || []);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/login"); return;
-    }
-    if (user && user.role !== "HOTE") {
-      showToast("Accès réservé aux hôtes.", "error");
-      router.push("/"); return;
-    }
-  }, [isAuthenticated, user]); // eslint-disable-line
+    if (!isLoading && !isAuthenticated) { router.replace("/login?redirect=/host/dashboard"); return; }
+    if (!isLoading && user && user.role !== "HOTE") { showToast("Espace réservé aux hôtes.", "info"); router.replace("/"); return; }
+    if (isAuthenticated && user?.role === "HOTE") load();
+  }, [isLoading, isAuthenticated, user, router, load, showToast]);
 
-  // ── Chargement initial ─────────────────────────────────
-  useEffect(() => {
-    if (!isAuthenticated || user?.role !== "HOTE") return;
-    async function load() {
-      setLoading(true);
-      const [resAnnonces, resReservations] = await Promise.all([
-        getMesAnnonces(),
-        getReservationsRecues(),
-      ]);
-      if (resAnnonces.data)     setAnnonces(resAnnonces.data ?? []);
-      if (resReservations.data) setReservations(resReservations.data ?? []);
-      setLoading(false);
-    }
-    load();
-  }, [isAuthenticated, user]); // eslint-disable-line
-
-  // ── Mise à jour temps réel ────────────────────────────
-  useSocket("notifications", (notif) => {
-    if (notif.type === "RESERVATION_RECUE") {
-      getReservationsRecues().then(({ data }) => {
-        if (data) setReservations(data);
-      });
-      showToast("🔔 Nouvelle demande de réservation reçue !", "info", 6000);
-    }
-  });
-
-  // ── Confirmer une réservation ─────────────────────────
-  async function handleConfirmer(id: number) {
-    setActionLoading(id);
-    const { data, error } = await confirmerReservation(id);
-    setActionLoading(null);
-    if (error || !data) {
-      showToast(error || "Erreur lors de la confirmation.", "error"); return;
-    }
-    setReservations((prev) =>
-      prev.map((r) => r.id === id ? { ...r, statut: "CONFIRMEE" } : r)
-    );
-    showToast("Réservation confirmée ✅", "success");
+  async function removeAnnonce(a: Annonce) {
+    if (!confirm(`Supprimer l'annonce « ${a.titre} » ?`)) return;
+    const { error } = await deleteAnnonce(a.id);
+    if (error) { showToast(error, "error"); return; }
+    showToast("Annonce supprimée.", "info"); load();
+  }
+  async function refuse(r: Reservation) {
+    const { error } = await refuserReservation(r.idreservation);
+    if (error) { showToast(error, "error"); return; }
+    showToast("Réservation refusée.", "info"); load();
+  }
+  async function cancel(r: Reservation) {
+    const { error } = await annulerReservation(r.idreservation);
+    if (error) { showToast(error, "error"); return; }
+    showToast("Réservation annulée.", "info"); load();
   }
 
-  // ── Annuler / Refuser une réservation ─────────────────
-  async function handleAnnuler(id: number) {
-    setActionLoading(id);
-    const { error } = await annulerReservation(id);
-    setActionLoading(null);
-    if (error) {
-      showToast(error || "Erreur lors de l'annulation.", "error"); return;
-    }
-    setReservations((prev) =>
-      prev.map((r) => r.id === id ? { ...r, statut: "ANNULEE" } : r)
-    );
-    showToast("Réservation refusée.", "success");
-  }
-
-  // ── Supprimer une annonce ─────────────────────────────
-  async function handleDeleteAnnonce(id: number) {
-    const { error } = await deleteAnnonce(id);
-    if (error) {
-      showToast(error || "Erreur lors de la suppression.", "error"); return;
-    }
-    setAnnonces((prev) => prev.filter((a) => a.id !== id));
-    showToast("Annonce supprimée.", "success");
-  }
-
-  // ── Statistiques calculées ────────────────────────────
-  const stats = {
-    totalAnnonces:   annonces.length,
-    annoncesActives: annonces.filter((a) => a.disponible).length,
-    totalRes:        reservations.length,
-    resEnAttente:    reservations.filter((r) => r.statut === "EN_ATTENTE").length,
-    resConfirmees:   reservations.filter((r) => r.statut === "CONFIRMEE").length,
-    revenuTotal:     reservations
-      .filter((r) => r.statut === "CONFIRMEE" || r.statut === "TERMINEE")
-      .reduce((sum, r) => sum + Number(r.montant_total), 0),
-  };
-
-  // ── Filtrage réservations ─────────────────────────────
-  const reservationsFiltrees = filtreRes === "TOUT"
-    ? reservations
-    : reservations.filter((r) => r.statut === filtreRes);
-
-  // ══════════════════════════════════════════════════════
-  //  RENDU
-  // ══════════════════════════════════════════════════════
+  const pendingCount = resas.filter((r) => r.statut === "EN_ATTENTE").length;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-
-      {/* ── EN-TÊTE ── */}
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
-        <div>
-          <h1 className="font-playfair text-3xl md:text-4xl font-bold text-gray-900">
-            Tableau de bord
-          </h1>
-          <p className="text-gray-400 mt-1 text-sm">
-            Bienvenue, {user?.prenom} 👋 — Espace hôte
-          </p>
+    <div style={{ minHeight: "100vh", background: "#F7F3EC", paddingTop: "104px", paddingBottom: 60 }}>
+      <div className="mx-auto px-6" style={{ maxWidth: "1100px" }}>
+        <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
+          <div>
+            <p className="mb-1" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600, color: "#C9943A", letterSpacing: "0.14em", textTransform: "uppercase" }}>Espace hôte</p>
+            <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 42, fontWeight: 600, color: "#1A3C2E" }}>Tableau de bord</h1>
+          </div>
+          <Link href="/host/listings/create" className="flex items-center gap-2" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 700, color: "#1A3C2E", background: "linear-gradient(135deg, #C9943A, #D9A84A)", borderRadius: 10, padding: "12px 22px", textDecoration: "none", boxShadow: "0 4px 16px rgba(201,148,58,0.3)" }}>
+            <Plus size={16} /> Nouvelle annonce
+          </Link>
         </div>
-        <Link href="/host/listings/create"
-          className="bg-red-500 hover:bg-red-600 text-white font-bold
-                     px-5 py-2.5 rounded-xl text-sm transition-colors
-                     flex items-center gap-2">
-          ＋ Nouvelle annonce
-        </Link>
-      </div>
 
-      {/* ── ONGLETS ── */}
-      <div className="flex gap-1 bg-white rounded-2xl p-1.5 shadow-sm
-                      border border-gray-100 w-fit mb-8">
-        {([
-          { key: "stats",        label: "📊 Statistiques"  },
-          { key: "annonces",     label: "🏠 Mes annonces"  },
-          { key: "reservations", label: "📅 Réservations"  },
-        ] as { key: Onglet; label: string }[]).map(({ key, label }) => (
-          <button key={key} onClick={() => setOnglet(key)}
-            className={`px-5 py-2.5 rounded-xl text-sm font-semibold
-                        transition-all whitespace-nowrap
-                        ${onglet === key
-                          ? "bg-red-500 text-white shadow-sm"
-                          : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"}`}>
-            {label}
-            {key === "reservations" && stats.resEnAttente > 0 && (
-              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-bold
-                                ${onglet === key
-                                  ? "bg-white/30 text-white"
-                                  : "bg-red-500 text-white"}`}>
-                {stats.resEnAttente}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* ══════ ONGLET STATISTIQUES ══════ */}
-      {onglet === "stats" && (
-        <div className="space-y-8">
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => <SkeletonStat key={i} />)}
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <StatCard icon="🏠" label="Total annonces"
-                  value={stats.totalAnnonces}
-                  sub={`${stats.annoncesActives} active${stats.annoncesActives > 1 ? "s" : ""}`}
-                  color="bg-red-50" />
-                <StatCard icon="📅" label="Total réservations"
-                  value={stats.totalRes}
-                  sub={`${stats.resEnAttente} en attente`}
-                  color="bg-yellow-50" />
-                <StatCard icon="✅" label="Réservations confirmées"
-                  value={stats.resConfirmees}
-                  color="bg-green-50" />
-                <StatCard icon="💰" label="Revenu total"
-                  value={`${stats.revenuTotal.toLocaleString("fr-FR")} FCFA`}
-                  sub="Confirmées + Terminées"
-                  color="bg-blue-50" />
-                <StatCard icon="⭐" label="Note moyenne"
-                  value={
-                    annonces.some((a) => a.note_moyenne)
-                      ? (annonces.reduce((s, a) =>
-                          s + parseFloat(String(a.note_moyenne ?? 0)), 0
-                        ) / annonces.filter((a) => a.note_moyenne).length
-                        ).toFixed(1) + " / 5"
-                      : "—"
-                  }
-                  color="bg-purple-50" />
-                <StatCard icon="⏳" label="En attente de réponse"
-                  value={stats.resEnAttente}
-                  sub="À traiter rapidement"
-                  color="bg-orange-50" />
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          {[
+            { Icon: Home, label: "Annonces", value: annonces.length },
+            { Icon: CalendarRange, label: "Réservations", value: resas.length },
+            { Icon: Calendar, label: "En attente", value: pendingCount },
+          ].map(({ Icon, label, value }) => (
+            <div key={label} className="rounded-2xl p-5 flex items-center gap-4" style={{ background: "#fff", border: "1px solid rgba(26,60,46,0.08)" }}>
+              <div className="flex items-center justify-center rounded-full" style={{ width: 48, height: 48, background: "rgba(26,60,46,0.08)" }}><Icon size={22} color="#1A3C2E" /></div>
+              <div>
+                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 700, color: "#1A3C2E", lineHeight: 1 }}>{value}</div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: "rgba(28,28,28,0.5)" }}>{label}</div>
               </div>
+            </div>
+          ))}
+        </div>
 
-              {/* Accès rapide */}
-              <div className="bg-white rounded-2xl border border-gray-100
-                              shadow-sm p-6">
-                <h2 className="font-bold text-gray-800 mb-4">Accès rapide</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button onClick={() => setOnglet("reservations")}
-                    className="flex items-center gap-3 p-4 bg-yellow-50 rounded-xl
-                               border border-yellow-200 hover:bg-yellow-100
-                               transition-colors text-left">
-                    <span className="text-2xl">⏳</span>
-                    <div>
-                      <p className="font-bold text-yellow-800 text-sm">
-                        {stats.resEnAttente} en attente
-                      </p>
-                      <p className="text-xs text-yellow-600">À confirmer ou refuser</p>
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          {([["annonces", "Mes annonces"], ["reservations", "Réservations reçues"]] as const).map(([t, label]) => (
+            <button key={t} onClick={() => setTab(t)} style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: tab === t ? "#fff" : "#1A3C2E", background: tab === t ? "#1A3C2E" : "#fff", border: "1px solid rgba(26,60,46,0.12)", borderRadius: 10, padding: "10px 20px", cursor: "pointer" }}>{label}</button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col gap-4">{[...Array(2)].map((_, i) => <div key={i} className="skeleton rounded-2xl" style={{ height: 140 }} />)}</div>
+        ) : tab === "annonces" ? (
+          annonces.length === 0 ? (
+            <Empty title="Aucune annonce" text="Publiez votre première chambre pour commencer à recevoir des réservations." cta={{ href: "/host/listings/create", label: "Créer une annonce" }} />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {annonces.map((a) => (
+                <div key={a.id} className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "#fff", border: "1px solid rgba(26,60,46,0.08)" }}>
+                  <div className="relative" style={{ height: 160 }}>
+                    <ImageWithFallback src={imageUrl(a.images?.[0])} alt={a.titre} className="w-full h-full object-cover" />
+                    <span className="absolute top-3 left-3 px-3 py-1 rounded-full" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 600, color: "#1A3C2E", background: "rgba(255,255,255,0.92)" }}>{a.statut || "DISPONIBLE"}</span>
+                  </div>
+                  <div className="p-5 flex flex-col flex-1">
+                    <h3 className="mb-1" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 700, color: "#1C1C1C" }}>{a.titre}</h3>
+                    <div className="flex flex-wrap gap-3 mb-3" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: "rgba(28,28,28,0.55)" }}>
+                      <span className="flex items-center gap-1"><MapPin size={13} color="#C4622D" />{[a.quartier, a.ville].filter(Boolean).join(", ")}</span>
+                      <span className="flex items-center gap-1"><Users size={13} />{a.capacite} pers.</span>
+                      <span className="flex items-center gap-1"><Star size={13} fill="#C9943A" color="#C9943A" />{Number(a.note_moyenne || 0).toFixed(1)} ({a.nb_avis || 0})</span>
                     </div>
-                  </button>
-                  <button onClick={() => setOnglet("annonces")}
-                    className="flex items-center gap-3 p-4 bg-red-50 rounded-xl
-                               border border-red-200 hover:bg-red-100
-                               transition-colors text-left">
-                    <span className="text-2xl">🏠</span>
-                    <div>
-                      <p className="font-bold text-red-800 text-sm">
-                        {stats.totalAnnonces} annonce{stats.totalAnnonces > 1 ? "s" : ""}
-                      </p>
-                      <p className="text-xs text-red-600">Gérer mes annonces</p>
+                    <div className="mt-auto flex items-center justify-between pt-3" style={{ borderTop: "1px solid rgba(26,60,46,0.07)" }}>
+                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 700, color: "#C9943A" }}>{formatFCFA(Number(a.prixparnuit ?? a.prix ?? 0))}<span style={{ fontSize: 12, color: "rgba(28,28,28,0.45)", fontFamily: "'DM Sans', sans-serif" }}> /nuit</span></span>
+                      <div className="flex gap-2">
+                        <Link href={`/host/listings/${a.id}/edit`} className="host-icon-btn" title="Modifier"><Pencil size={16} color="#1A3C2E" /></Link>
+                        <button onClick={() => removeAnnonce(a)} className="host-icon-btn" title="Supprimer"><Trash2 size={16} color="#C4622D" /></button>
+                      </div>
                     </div>
-                  </button>
-                  <Link href="/host/listings/create"
-                    className="flex items-center gap-3 p-4 bg-green-50 rounded-xl
-                               border border-green-200 hover:bg-green-100
-                               transition-colors">
-                    <span className="text-2xl">＋</span>
-                    <div>
-                      <p className="font-bold text-green-800 text-sm">
-                        Nouvelle annonce
-                      </p>
-                      <p className="text-xs text-green-600">Publier une chambre</p>
-                    </div>
-                  </Link>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ══════ ONGLET ANNONCES ══════ */}
-      {onglet === "annonces" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-500">
-              {annonces.length} annonce{annonces.length > 1 ? "s" : ""} publiée{annonces.length > 1 ? "s" : ""}
-            </p>
-            <Link href="/host/listings/create"
-              className="bg-red-500 hover:bg-red-600 text-white font-bold
-                         px-4 py-2 rounded-xl text-xs transition-colors">
-              ＋ Ajouter
-            </Link>
-          </div>
-
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-20 skeleton rounded-2xl" />
-            ))
-          ) : annonces.length > 0 ? (
-            annonces.map((a) => (
-              <AnnonceRow key={a.id} annonce={a}
-                onDelete={handleDeleteAnnonce} />
-            ))
-          ) : (
-            <div className="text-center py-20 bg-white rounded-2xl border
-                            border-gray-100">
-              <p className="text-5xl mb-4">🏠</p>
-              <h3 className="font-semibold text-gray-700 mb-2">
-                Aucune annonce publiée
-              </h3>
-              <p className="text-gray-400 text-sm mb-6">
-                Publiez votre première chambre et commencez à recevoir des réservations.
-              </p>
-              <Link href="/host/listings/create"
-                className="inline-block bg-red-500 hover:bg-red-600 text-white
-                           font-bold px-6 py-3 rounded-full text-sm transition-colors">
-                Publier ma première annonce
-              </Link>
+              ))}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* ══════ ONGLET RÉSERVATIONS ══════ */}
-      {onglet === "reservations" && (
-        <div className="space-y-4">
-          {/* Filtres rapides */}
-          <div className="flex gap-2 flex-wrap">
-            {(["TOUT", "EN_ATTENTE", "CONFIRMEE", "TERMINEE", "ANNULEE"] as const).map((s) => (
-              <button key={s} onClick={() => setFiltreRes(s)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold
-                            transition-all border
-                            ${filtreRes === s
-                              ? "bg-red-500 text-white border-red-500"
-                              : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`}>
-                {s === "TOUT" ? "Toutes" : STATUT_CONFIG[s].label}
-                <span className="ml-1.5 opacity-70">
-                  ({s === "TOUT"
-                    ? reservations.length
-                    : reservations.filter((r) => r.statut === s).length})
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-28 skeleton rounded-2xl" />
-            ))
-          ) : reservationsFiltrees.length > 0 ? (
-            reservationsFiltrees.map((r) => (
-              <ReservationRow
-                key={r.id}
-                reservation={r}
-                onConfirmer={handleConfirmer}
-                onAnnuler={handleAnnuler}
-                actionLoading={actionLoading}
-              />
-            ))
+          )
+        ) : (
+          resas.length === 0 ? (
+            <Empty title="Aucune réservation" text="Les réservations de vos chambres apparaîtront ici." />
           ) : (
-            <div className="text-center py-20 bg-white rounded-2xl border
-                            border-gray-100">
-              <p className="text-5xl mb-4">📅</p>
-              <h3 className="font-semibold text-gray-700 mb-2">
-                Aucune réservation
-              </h3>
-              <p className="text-gray-400 text-sm">
-                {filtreRes === "TOUT"
-                  ? "Vous n'avez reçu aucune demande pour le moment."
-                  : `Aucune réservation avec le statut "${STATUT_CONFIG[filtreRes as Statut]?.label}".`}
-              </p>
+            <div className="flex flex-col gap-4">
+              {resas.map((r) => {
+                const st = STATUTS[r.statut];
+                return (
+                  <div key={r.idreservation} className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid rgba(26,60,46,0.08)" }}>
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 700, color: "#1C1C1C" }}>{r.annonce_titre}</h3>
+                      <span className="px-3 py-1 rounded-full flex-shrink-0" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600, color: st.color, background: st.bg }}>{st.label}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 mb-3" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: "rgba(28,28,28,0.6)" }}>
+                      <span>👤 {r.client_prenom} {r.client_nom} · {r.client_email}</span>
+                      <span className="flex items-center gap-1.5"><Calendar size={14} color="#C9943A" />{fmtDate(r.datedebut)} → {fmtDate(r.datefin)}</span>
+                      <span className="flex items-center gap-1.5"><Users size={14} color="#1A3C2E" />{r.nombrepersonnes} pers.</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid rgba(26,60,46,0.07)" }}>
+                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 700, color: "#C9943A" }}>{formatFCFA(Number(r.montanttotal))}</span>
+                      <div className="flex gap-2">
+                        {r.statut === "EN_ATTENTE" && (<button onClick={() => refuse(r)} className="resa-btn-outline">Refuser</button>)}
+                        {(r.statut === "EN_ATTENTE" || r.statut === "CONFIRMEE") && (<button onClick={() => cancel(r)} className="resa-btn-outline">Annuler</button>)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
-      )}
+          )
+        )}
+      </div>
+      <style>{`
+        .host-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:8px; background:#F7F3EC; border:1px solid rgba(26,60,46,0.1); cursor:pointer; text-decoration:none; }
+        .host-icon-btn:hover { background:#EFE7D8; }
+        .resa-btn-outline { font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:#C4622D; background:none; border:1.5px solid rgba(196,98,45,0.4); border-radius:8px; padding:9px 18px; cursor:pointer; }
+      `}</style>
+    </div>
+  );
+}
+
+function Empty({ title, text, cta }: { title: string; text: string; cta?: { href: string; label: string } }) {
+  return (
+    <div className="text-center rounded-2xl p-12" style={{ background: "#fff", border: "1px solid rgba(26,60,46,0.08)" }}>
+      <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, color: "#1A3C2E", marginBottom: 8 }}>{title}</p>
+      <p className="mb-6" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: "rgba(28,28,28,0.55)" }}>{text}</p>
+      {cta && <Link href={cta.href} style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, color: "#1A3C2E", background: "linear-gradient(135deg, #C9943A, #D9A84A)", borderRadius: 10, padding: "12px 28px", textDecoration: "none" }}>{cta.label}</Link>}
     </div>
   );
 }

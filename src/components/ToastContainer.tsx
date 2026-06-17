@@ -1,6 +1,6 @@
 "use client";
 // ============================================================
-//  NidiRoom — components/ToastContainer.tsx
+//  KamerStay — components/ToastContainer.tsx
 //  Affiche les toasts en bas de l'écran
 // ============================================================
 

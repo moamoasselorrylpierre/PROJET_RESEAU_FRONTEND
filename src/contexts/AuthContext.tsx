@@ -1,6 +1,6 @@
 "use client";
 // ============================================================
-//  NidiRoom — contexts/AuthContext.tsx
+//  KamerStay — contexts/AuthContext.tsx
 //  Fournit l'état de session à toute l'application
 //  Connecte aussi le WebSocket dès que l'utilisateur se connecte
 // ============================================================

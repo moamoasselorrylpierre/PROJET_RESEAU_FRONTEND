@@ -1,5 +1,5 @@
 // ============================================================
-//  NidiRoom — lib/socket.ts
+//  KamerStay — lib/socket.ts
 //  Connexion WebSocket temps réel avec Socket.io
 //  Le backend Node.js envoie les notifications temps réel
 //  via Socket.io
@@ -41,10 +41,10 @@ export interface SocketNotification {
 export type NotificationHandler = (notif: SocketNotification) => void;
 
 // ══════════════════════════════════════════════════════════
-//  CLASSE PRINCIPALE — NidiRoomSocket
+//  CLASSE PRINCIPALE — KamerStaySocket
 // ══════════════════════════════════════════════════════════
 
-class NidiRoomSocket {
+class KamerStaySocket {
   private socket: Socket | null = null;
   private handlers: Map<string, Set<NotificationHandler>> = new Map();
   private isConnected: boolean = false;
@@ -123,6 +123,18 @@ class NidiRoomSocket {
             type: "RESERVATION_ANNULEE",
             titre: "Réservation annulée",
             message: "Une réservation a été annulée",
+            data,
+            timestamp: new Date().toISOString(),
+            lu: false,
+          });
+        });
+
+        this.socket.on("reservation_refusee", (data) => {
+          this._dispatch("notifications", {
+            id: String(Date.now()),
+            type: "RESERVATION_ANNULEE",
+            titre: "Réservation refusée",
+            message: "Votre réservation a été refusée par l'hôte",
             data,
             timestamp: new Date().toISOString(),
             lu: false,
@@ -211,7 +223,7 @@ class NidiRoomSocket {
 //  SINGLETON — une seule instance dans toute l'app
 // ══════════════════════════════════════════════════════════
 
-export const socketService = new NidiRoomSocket();
+export const socketService = new KamerStaySocket();
 
 // ══════════════════════════════════════════════════════════
 //  HOOK REACT — useSocket

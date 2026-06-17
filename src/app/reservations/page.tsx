@@ -1,360 +1,197 @@
 "use client";
 // ============================================================
-//  NidiRoom — app/reservations/page.tsx
-//  Suivi des réservations du locataire connecté
-//  Statuts : EN_ATTENTE | CONFIRMEE | ANNULEE | TERMINEE
+//  KamerStay — app/reservations/page.tsx  (Mes réservations — CLIENT)
+//  Payer (si EN_ATTENTE), annuler, laisser un avis (si TERMINEE).
 // ============================================================
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { MapPin, Calendar, Users, Star, X } from "lucide-react";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
+import { formatFCFA } from "@/data/rooms";
+import { imageUrl } from "@/lib/images";
 import {
-  getMesReservations,
-  annulerReservation,
-  createPaiement,
-  Reservation,
+  getMesReservations, createPaiement, annulerReservation, createAvis,
+  type Reservation, type ModePaiement, type StatutReservation,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
-import { useSocket } from "@/lib/socket";
 
-// ══════════════════════════════════════════════════════════
-//  UTILITAIRES STATUT
-// ══════════════════════════════════════════════════════════
-
-type Statut = Reservation["statut"];
-
-const STATUT_CONFIG: Record<Statut,{ label: string; color: string; icon: string }> = {
-  EN_ATTENTE: { label: "En attente", color: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: "⏳" },
-  CONFIRMEE:  { label: "Confirmée",  color: "bg-green-100 text-green-800 border-green-200",   icon: "✅" },
-  ANNULEE:    { label: "Annulée",    color: "bg-red-100 text-red-700 border-red-200",          icon: "❌" },
-  TERMINEE:   { label: "Terminée",   color: "bg-gray-100 text-gray-600 border-gray-200",       icon: "🏁" },
+const STATUTS: Record<StatutReservation, { label: string; color: string; bg: string }> = {
+  EN_ATTENTE: { label: "En attente de paiement", color: "#9A6B00", bg: "#FCEFC7" },
+  CONFIRMEE:  { label: "Confirmée",               color: "#1A3C2E", bg: "#D7EBDD" },
+  TERMINEE:   { label: "Terminée",                color: "#3A3A3A", bg: "#E8E2D6" },
+  ANNULEE:    { label: "Annulée",                 color: "#A12A12", bg: "#F7D9D0" },
+  REFUSEE:    { label: "Refusée",                 color: "#A12A12", bg: "#F7D9D0" },
 };
 
-function StatutBadge({ statut }: { statut: Statut }) {
-  const cfg = STATUT_CONFIG[statut];
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${cfg.color}`}>
-      {cfg.icon} {cfg.label}
-    </span>
-  );
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("fr-FR", {
-    day: "numeric", month: "long", year: "numeric",
-  });
-}
-
-function diffJours(debut: string, fin: string): number {
-  return Math.max(1, Math.ceil((new Date(fin).getTime() - new Date(debut).getTime()) / 86400000));
-}
-
-// ══════════════════════════════════════════════════════════
-//  COMPOSANT CARTE RÉSERVATION
-// ══════════════════════════════════════════════════════════
-
-function ReservationCard({
-  reservation, onAnnuler, onPayer, actionLoading,
-}: {
-  reservation: Reservation;
-  onAnnuler: (id: number) => void;
-  onPayer: (id: number) => void;
-  actionLoading: number | null;
-}) {
-  const { annonce, statut } = reservation;
-  const nuits = diffJours(reservation.date_debut, reservation.date_fin);
-  const isLoading = actionLoading === reservation.id;
-
-  return (
-    <div className={`bg-white rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-shadow ${statut === "ANNULEE" ? "opacity-70" : ""}`}>
-      <div className={`h-1.5 w-full
-        ${statut === "CONFIRMEE"  ? "bg-green-400"  : ""}
-        ${statut === "EN_ATTENTE" ? "bg-yellow-400" : ""}
-        ${statut === "ANNULEE"    ? "bg-red-400"    : ""}
-        ${statut === "TERMINEE"   ? "bg-gray-300"   : ""}`}
-      />
-      <div className="p-6">
-        <div className="flex flex-col sm:flex-row gap-5">
-          {/* Image */}
-          <div className="flex-shrink-0 w-full sm:w-32 h-28 rounded-xl overflow-hidden bg-gray-100">
-            {annonce?.image_principale ? (
-              <img src={annonce.image_principale} alt={annonce.titre} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl bg-gradient-to-br from-red-50 to-orange-50">🏠</div>
-            )}
-          </div>
-
-          {/* Infos */}
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
-              <div>
-                <Link href={`/listings/${annonce?.id}`}
-                  className="font-bold text-gray-900 hover:text-red-500 transition-colors text-base line-clamp-1">
-                  {annonce?.titre ?? "Annonce supprimée"}
-                </Link>
-                <p className="text-gray-400 text-xs mt-0.5">📍 {annonce?.ville ?? "—"}</p>
-              </div>
-              <StatutBadge statut={statut} />
-            </div>
-
-            {/* Dates */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-              <div className="bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Arrivée</p>
-                <p className="text-sm font-semibold text-gray-800">{formatDate(reservation.date_debut)}</p>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Départ</p>
-                <p className="text-sm font-semibold text-gray-800">{formatDate(reservation.date_fin)}</p>
-              </div>
-              <div className="bg-red-50 rounded-xl p-3 text-center border border-red-100">
-                <p className="text-xs text-red-400 font-medium uppercase tracking-wide mb-1">Durée</p>
-                <p className="text-sm font-bold text-red-700">{nuits} nuit{nuits > 1 ? "s" : ""}</p>
-              </div>
-            </div>
-
-            {/* Montant + actions */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Montant total</p>
-                <p className="font-bold text-gray-900 text-lg">
-                  {Number(reservation.montant_total).toLocaleString("fr-FR")}
-                  <span className="text-gray-400 font-normal text-sm"> FCFA</span>
-                </p>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {statut === "CONFIRMEE" && (
-                  <button onClick={() => onPayer(reservation.id)} disabled={isLoading}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-bold px-4 py-2 rounded-xl text-xs transition-colors flex items-center gap-1.5">
-                    {isLoading ? (
-                      <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                      </svg>Redirection…</>
-                    ) : <>💳 Payer maintenant</>}
-                  </button>
-                )}
-                {annonce?.id && (
-                  <Link href={`/listings/${annonce.id}`}
-                    className="border border-gray-200 hover:border-gray-400 text-gray-600 font-medium px-4 py-2 rounded-xl text-xs transition-colors">
-                    Voir l&apos;annonce
-                  </Link>
-                )}
-                {statut === "EN_ATTENTE" && (
-                  <button onClick={() => onAnnuler(reservation.id)} disabled={isLoading}
-                    className="border border-red-200 hover:bg-red-50 text-red-600 font-medium px-4 py-2 rounded-xl text-xs transition-colors disabled:opacity-50">
-                    {isLoading ? "Annulation…" : "Annuler"}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Messages info statut */}
-            {statut === "EN_ATTENTE" && (
-              <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 mt-3">
-                ⏳ En attente de confirmation par l&apos;hôte. Vous serez notifié dès qu&apos;il répond.
-              </p>
-            )}
-            {statut === "CONFIRMEE" && (
-              <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 mt-3">
-                ✅ Réservation confirmée ! Procédez au paiement pour finaliser.
-              </p>
-            )}
-            {statut === "ANNULEE" && (
-              <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-3">
-                ❌ Cette réservation a été annulée.
-              </p>
-            )}
-            {statut === "TERMINEE" && (
-              <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mt-3">
-                🏁 Séjour terminé. Pensez à laisser un avis sur l&apos;annonce !
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  SQUELETTES
-// ══════════════════════════════════════════════════════════
-
-function SkeletonCard() {
-  return (
-    <div className="bg-white rounded-2xl border overflow-hidden">
-      <div className="h-1.5 skeleton w-full" />
-      <div className="p-6 flex gap-5">
-        <div className="w-32 h-28 skeleton rounded-xl flex-shrink-0" />
-        <div className="flex-1 space-y-3">
-          <div className="h-5 skeleton rounded w-2/3" />
-          <div className="h-3 skeleton rounded w-1/3" />
-          <div className="grid grid-cols-3 gap-3">
-            <div className="h-14 skeleton rounded-xl" />
-            <div className="h-14 skeleton rounded-xl" />
-            <div className="h-14 skeleton rounded-xl" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  PAGE PRINCIPALE
-// ══════════════════════════════════════════════════════════
-
-type FiltreStatut = "TOUT" | Statut;
-
-const FILTRES: { value: FiltreStatut; label: string }[] = [
-  { value: "TOUT",       label: "Toutes"     },
-  { value: "EN_ATTENTE", label: "En attente" },
-  { value: "CONFIRMEE",  label: "Confirmées" },
-  { value: "TERMINEE",   label: "Terminées"  },
-  { value: "ANNULEE",    label: "Annulées"   },
+const payModes: { id: ModePaiement; label: string; icon: string }[] = [
+  { id: "MOBILE_MONEY", label: "Mobile Money (MTN / Orange)", icon: "📱" },
+  { id: "CARTE", label: "Carte bancaire", icon: "💳" },
+  { id: "ESPECES", label: "À l'hôtel (espèces)", icon: "🏨" },
 ];
 
+function fmtDate(d?: string) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 export default function ReservationsPage() {
-  const router              = useRouter();
-  const { isAuthenticated } = useAuth();
-  const { showToast }       = useToast();
+  const router = useRouter();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const { showToast } = useToast();
 
-  const [reservations,  setReservations]  = useState<Reservation[]>([]);
-  const [loading,       setLoading]       = useState(true);
-  const [filtre,        setFiltre]        = useState<FiltreStatut>("TOUT");
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [list, setList] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [payFor, setPayFor] = useState<Reservation | null>(null);
+  const [payMode, setPayMode] = useState<ModePaiement>("MOBILE_MONEY");
+  const [reviewFor, setReviewFor] = useState<Reservation | null>(null);
+  const [note, setNote] = useState(5);
+  const [commentaire, setCommentaire] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data } = await getMesReservations();
+    setList(data || []);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      showToast("Connectez-vous pour voir vos réservations.", "warning");
-      router.push("/login");
-    }
-  }, [isAuthenticated]); // eslint-disable-line
+    if (!isLoading && !isAuthenticated) { router.replace("/login?redirect=/reservations"); return; }
+    if (!isLoading && user?.role !== "CLIENT") { showToast("Espace réservé aux comptes CLIENT.", "info"); return; }
+    if (isAuthenticated) load();
+  }, [isLoading, isAuthenticated, user, router, load, showToast]);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    async function load() {
-      setLoading(true);
-      const { data, error } = await getMesReservations();
-      if (error) showToast("Erreur lors du chargement des réservations.", "error");
-      else setReservations(data ?? []);
-      setLoading(false);
-    }
-    load();
-  }, [isAuthenticated]); // eslint-disable-line
-
-  // Mise à jour temps réel WebSocket
-  useSocket("notifications", (notif) => {
-    if (notif.type === "RESERVATION_CONFIRMEE" || notif.type === "RESERVATION_ANNULEE") {
-      getMesReservations().then(({ data }) => { if (data) setReservations(data); });
-    }
-  });
-
-  async function handleAnnuler(id: number) {
-    if (!window.confirm("Êtes-vous sûr de vouloir annuler cette réservation ?")) return;
-    setActionLoading(id);
-    const { error } = await annulerReservation(id);
-    setActionLoading(null);
-    if (error) { showToast(error || "Erreur lors de l'annulation.", "error"); return; }
-    setReservations((prev) => prev.map((r) => r.id === id ? { ...r, statut: "ANNULEE" } : r));
-    showToast("Réservation annulée.", "success");
+  async function confirmPay() {
+    if (!payFor) return;
+    setBusy(true);
+    const { error } = await createPaiement({ reservation_id: payFor.idreservation, mode_paiement: payMode });
+    setBusy(false);
+    if (error) { showToast(error, "error"); return; }
+    showToast("Paiement effectué — réservation confirmée !", "success");
+    setPayFor(null); load();
   }
 
-  async function handlePayer(id: number) {
-    setActionLoading(id);
-    const { data, error } = await createPaiement({ reservation_id: id });
-    setActionLoading(null);
-    if (error || !data) { showToast(error || "Erreur lors du paiement.", "error"); return; }
-    window.location.href = data.payment_url;
+  async function cancel(r: Reservation) {
+    const { error } = await annulerReservation(r.idreservation);
+    if (error) { showToast(error, "error"); return; }
+    showToast("Réservation annulée.", "info"); load();
   }
 
-  const reservationsFiltrees = filtre === "TOUT"
-    ? reservations
-    : reservations.filter((r) => r.statut === filtre);
-
-  const compteurs = {
-    TOUT:       reservations.length,
-    EN_ATTENTE: reservations.filter((r) => r.statut === "EN_ATTENTE").length,
-    CONFIRMEE:  reservations.filter((r) => r.statut === "CONFIRMEE").length,
-    TERMINEE:   reservations.filter((r) => r.statut === "TERMINEE").length,
-    ANNULEE:    reservations.filter((r) => r.statut === "ANNULEE").length,
-  };
+  async function submitReview() {
+    if (!reviewFor) return;
+    setBusy(true);
+    const { error } = await createAvis({ reservation_id: reviewFor.idreservation, note, commentaire });
+    setBusy(false);
+    if (error) { showToast(error, "error"); return; }
+    showToast("Merci pour votre avis !", "success");
+    setReviewFor(null); setCommentaire(""); setNote(5); load();
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
-      <div className="mb-8">
-        <h1 className="font-playfair text-3xl md:text-4xl font-bold text-gray-900">Mes réservations</h1>
-        <p className="text-gray-400 mt-2 text-sm">
-          {loading ? "Chargement…" : `${reservations.length} réservation${reservations.length > 1 ? "s" : ""} au total`}
-        </p>
+    <div style={{ minHeight: "100vh", background: "#F7F3EC", paddingTop: "104px", paddingBottom: 60 }}>
+      <div className="mx-auto px-6" style={{ maxWidth: "960px" }}>
+        <p className="mb-1" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600, color: "#C9943A", letterSpacing: "0.14em", textTransform: "uppercase" }}>Mon espace voyageur</p>
+        <h1 className="mb-8" style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 42, fontWeight: 600, color: "#1A3C2E" }}>Mes réservations</h1>
+
+        {loading ? (
+          <div className="flex flex-col gap-4">{[...Array(2)].map((_, i) => <div key={i} className="skeleton rounded-2xl" style={{ height: 150 }} />)}</div>
+        ) : list.length === 0 ? (
+          <div className="text-center rounded-2xl p-12" style={{ background: "#fff", border: "1px solid rgba(26,60,46,0.08)" }}>
+            <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, color: "#1A3C2E", marginBottom: 8 }}>Aucune réservation pour l&apos;instant</p>
+            <p className="mb-6" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: "rgba(28,28,28,0.55)" }}>Trouvez votre prochain séjour au Cameroun.</p>
+            <Link href="/search" style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, color: "#1A3C2E", background: "linear-gradient(135deg, #C9943A, #D9A84A)", borderRadius: 10, padding: "12px 28px", textDecoration: "none" }}>Explorer les hôtels</Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {list.map((r) => {
+              const st = STATUTS[r.statut];
+              const img = imageUrl(r.images?.[0]);
+              return (
+                <div key={r.idreservation} className="rounded-2xl overflow-hidden flex flex-col md:flex-row" style={{ background: "#fff", border: "1px solid rgba(26,60,46,0.08)", boxShadow: "0 2px 16px rgba(26,60,46,0.05)" }}>
+                  <div style={{ width: 200, minHeight: 150, flexShrink: 0 }} className="relative">
+                    <ImageWithFallback src={img} alt={r.annonce_titre || "Chambre"} className="w-full h-full object-cover" style={{ minHeight: 150 }} />
+                  </div>
+                  <div className="flex-1 p-6 flex flex-col">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 18, fontWeight: 700, color: "#1C1C1C" }}>{r.annonce_titre}</h3>
+                      <span className="px-3 py-1 rounded-full flex-shrink-0" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600, color: st.color, background: st.bg }}>{st.label}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 mb-3" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: "rgba(28,28,28,0.6)" }}>
+                      <span className="flex items-center gap-1.5"><MapPin size={14} color="#C4622D" />{[r.quartier, r.ville].filter(Boolean).join(", ")}</span>
+                      <span className="flex items-center gap-1.5"><Calendar size={14} color="#C9943A" />{fmtDate(r.datedebut)} → {fmtDate(r.datefin)}</span>
+                      <span className="flex items-center gap-1.5"><Users size={14} color="#1A3C2E" />{r.nombrepersonnes} pers.</span>
+                    </div>
+                    <div className="mt-auto flex items-center justify-between pt-3" style={{ borderTop: "1px solid rgba(26,60,46,0.07)" }}>
+                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, color: "#C9943A" }}>{formatFCFA(Number(r.montanttotal))}</span>
+                      <div className="flex gap-2">
+                        {r.statut === "EN_ATTENTE" && (<button onClick={() => { setPayFor(r); setPayMode("MOBILE_MONEY"); }} className="resa-btn-gold">Payer</button>)}
+                        {(r.statut === "EN_ATTENTE" || r.statut === "CONFIRMEE") && (<button onClick={() => cancel(r)} className="resa-btn-outline">Annuler</button>)}
+                        {r.statut === "TERMINEE" && (<button onClick={() => { setReviewFor(r); setNote(5); }} className="resa-btn-gold">Laisser un avis</button>)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Onglets filtre */}
-      <div className="flex gap-2 flex-wrap mb-8 bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 w-fit">
-        {FILTRES.map(({ value, label }) => (
-          <button key={value} onClick={() => setFiltre(value)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5
-              ${filtre === value ? "bg-red-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"}`}>
-            {label}
-            {compteurs[value] > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold
-                ${filtre === value ? "bg-white/25 text-white" : "bg-gray-100 text-gray-500"}`}>
-                {compteurs[value]}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Liste */}
-      {loading ? (
-        <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}</div>
-      ) : reservationsFiltrees.length > 0 ? (
-        <div className="space-y-4">
-          {reservationsFiltrees.map((r) => (
-            <ReservationCard key={r.id} reservation={r}
-              onAnnuler={handleAnnuler} onPayer={handlePayer} actionLoading={actionLoading} />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <p className="text-5xl mb-4">{filtre === "TOUT" ? "📅" : STATUT_CONFIG[filtre as Statut]?.icon ?? "📅"}</p>
-          <h3 className="font-semibold text-gray-700 text-lg mb-2">
-            {filtre === "TOUT" ? "Aucune réservation" : `Aucune réservation ${STATUT_CONFIG[filtre as Statut]?.label.toLowerCase()}`}
-          </h3>
-          <p className="text-gray-400 text-sm mb-6">
-            {filtre === "TOUT" ? "Vous n'avez pas encore effectué de réservation." : "Aucune réservation ne correspond à ce filtre."}
+      {/* Modal paiement */}
+      {payFor && (
+        <Modal onClose={() => setPayFor(null)} title="Procéder au paiement">
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: "rgba(28,28,28,0.6)", marginBottom: 16 }}>
+            {payFor.annonce_titre} — <strong style={{ color: "#C9943A" }}>{formatFCFA(Number(payFor.montanttotal))}</strong>
           </p>
-          {filtre === "TOUT" && (
-            <Link href="/listings"
-              className="inline-block bg-red-500 hover:bg-red-600 text-white font-bold px-6 py-3 rounded-full text-sm transition-colors">
-              Parcourir les annonces
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* Légende statuts */}
-      {!loading && reservations.length > 0 && (
-        <div className="mt-10 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Guide des statuts</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {(Object.entries(STATUT_CONFIG) as [Statut, typeof STATUT_CONFIG[Statut]][]).map(([statut]) => (
-              <div key={statut} className="flex items-start gap-3">
-                <StatutBadge statut={statut} />
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  {statut === "EN_ATTENTE" && "L'hôte n'a pas encore répondu à votre demande."}
-                  {statut === "CONFIRMEE"  && "L'hôte a accepté. Procédez au paiement."}
-                  {statut === "ANNULEE"    && "La réservation a été annulée (par vous ou l'hôte)."}
-                  {statut === "TERMINEE"   && "Séjour terminé. Vous pouvez laisser un avis."}
-                </p>
-              </div>
+          <div className="flex flex-col gap-2 mb-5">
+            {payModes.map((m) => (
+              <button key={m.id} onClick={() => setPayMode(m.id)} className="flex items-center gap-3 p-3 rounded-xl text-left" style={{ background: payMode === m.id ? "rgba(201,148,58,0.12)" : "#F7F3EC", border: payMode === m.id ? "2px solid #C9943A" : "2px solid transparent", cursor: "pointer" }}>
+                <span style={{ fontSize: 20 }}>{m.icon}</span>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: "#1C1C1C" }}>{m.label}</span>
+              </button>
             ))}
           </div>
-        </div>
+          <button onClick={confirmPay} disabled={busy} className="w-full resa-btn-gold" style={{ padding: 14 }}>{busy ? "Traitement…" : "Confirmer le paiement"}</button>
+        </Modal>
       )}
+
+      {/* Modal avis */}
+      {reviewFor && (
+        <Modal onClose={() => setReviewFor(null)} title="Votre avis">
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: "rgba(28,28,28,0.6)", marginBottom: 16 }}>{reviewFor.annonce_titre}</p>
+          <div className="flex gap-1 mb-4">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} onClick={() => setNote(n)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+                <Star size={28} fill={n <= note ? "#C9943A" : "none"} color="#C9943A" />
+              </button>
+            ))}
+          </div>
+          <textarea value={commentaire} onChange={(e) => setCommentaire(e.target.value)} placeholder="Partagez votre expérience…" rows={4} style={{ width: "100%", fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: "#1C1C1C", background: "#F7F3EC", border: "1px solid rgba(26,60,46,0.15)", borderRadius: 10, padding: 12, outline: "none", marginBottom: 16, resize: "vertical" }} />
+          <button onClick={submitReview} disabled={busy} className="w-full resa-btn-gold" style={{ padding: 14 }}>{busy ? "Envoi…" : "Publier l'avis"}</button>
+        </Modal>
+      )}
+
+      <style>{`
+        .resa-btn-gold { font-family:'DM Sans',sans-serif; font-size:13px; font-weight:700; color:#1A3C2E; background:linear-gradient(135deg, #C9943A, #D9A84A); border:none; border-radius:8px; padding:9px 18px; cursor:pointer; box-shadow:0 2px 10px rgba(201,148,58,0.3); }
+        .resa-btn-outline { font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:#C4622D; background:none; border:1.5px solid rgba(196,98,45,0.4); border-radius:8px; padding:9px 18px; cursor:pointer; }
+      `}</style>
+    </div>
+  );
+}
+
+function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(26,60,46,0.5)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div className="w-full rounded-2xl p-7" style={{ maxWidth: 420, background: "#fff", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600, color: "#1A3C2E" }}>{title}</h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={22} color="#1C1C1C" /></button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
