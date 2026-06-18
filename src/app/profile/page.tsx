@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  LogOut, Mail, User as UserIcon, Building2, BadgeCheck,
+  LogOut, Mail, User as UserIcon, BadgeCheck,
   LayoutDashboard, CalendarCheck, Phone, CreditCard, Upload, Clock, XCircle,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,7 +90,6 @@ export default function ProfilePage() {
             {[
               { Icon: UserIcon, label: "Nom complet", value: `${user.prenom} ${user.nom}` },
               { Icon: Mail, label: "Email", value: user.email },
-              ...(isHote ? [{ Icon: Building2, label: "Raison sociale", value: user.raison_sociale || "—" }] : []),
             ].map(({ Icon, label, value }) => (
               <div key={label} className={`flex items-center gap-4 p-4 rounded-xl ${styles.infoRow}`}>
                 <div className={`flex items-center justify-center rounded-full flex-shrink-0 ${styles.infoIconWrap}`}><Icon size={18} color="#1A3C2E" /></div>

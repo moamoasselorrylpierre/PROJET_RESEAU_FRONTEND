@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MapPin, Mail, Lock, User as UserIcon, Building2 } from "lucide-react";
-import { register, type Role } from "@/lib/api";
+import { MapPin, Mail, Lock, User as UserIcon } from "lucide-react";
+import { register } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import styles from "./register.module.css";
@@ -18,20 +18,17 @@ export default function RegisterPage() {
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
-  const [role, setRole] = useState<Role>("CLIENT");
-  const [raisonSociale, setRaisonSociale] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (role === "HOTE" && !raisonSociale.trim()) { showToast("La raison sociale est obligatoire pour un hôte.", "error"); return; }
     setLoading(true);
-    const { data, error } = await register({ nom, prenom, email, mot_de_passe: motDePasse, role, raison_sociale: role === "HOTE" ? raisonSociale : undefined });
+    const { data, error } = await register({ nom, prenom, email, mot_de_passe: motDePasse, role: "CLIENT" });
     setLoading(false);
     if (error || !data) { showToast(error || "Inscription impossible.", "error"); return; }
     setSession(data.token, data.user);
     showToast("Compte créé avec succès !", "success");
-    router.push(data.user.role === "HOTE" ? "/host/dashboard" : "/");
+    router.push("/");
   }
 
   return (
@@ -44,19 +41,6 @@ export default function RegisterPage() {
         <h1 className={`text-center mb-1 ${styles.title}`}>Créer un compte</h1>
         <p className={`text-center mb-7 ${styles.subtitle}`}>Rejoignez KamerStay en quelques secondes.</p>
 
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          {([
-            { v: "CLIENT" as Role, label: "Voyageur", desc: "Je réserve des chambres" },
-            { v: "HOTE" as Role, label: "Hôte", desc: "Je publie des annonces" },
-          ]).map((opt) => (
-            <button key={opt.v} type="button" onClick={() => setRole(opt.v)}
-              className={`${styles.roleBtn} ${role === opt.v ? styles.roleBtnActive : styles.roleBtnInactive}`}>
-              <p className={styles.roleLabel}>{opt.label}</p>
-              <p className={styles.roleDesc}>{opt.desc}</p>
-            </button>
-          ))}
-        </div>
-
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
             <label className={styles.field}><span className={styles.label}>Prénom</span><div className={styles.inputWrap}><UserIcon size={16} color="#C9943A" /><input required value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Amina" /></div></label>
@@ -64,13 +48,14 @@ export default function RegisterPage() {
           </div>
           <label className={styles.field}><span className={styles.label}>Email</span><div className={styles.inputWrap}><Mail size={16} color="#C9943A" /><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vous@email.com" /></div></label>
           <label className={styles.field}><span className={styles.label}>Mot de passe</span><div className={styles.inputWrap}><Lock size={16} color="#C9943A" /><input type="password" required minLength={6} value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} placeholder="•••••• (min. 6 caractères)" /></div></label>
-          {role === "HOTE" && (
-            <label className={styles.field}><span className={styles.label}>Raison sociale</span><div className={styles.inputWrap}><Building2 size={16} color="#C9943A" /><input required value={raisonSociale} onChange={(e) => setRaisonSociale(e.target.value)} placeholder="Mont-Cameroun Lodge" /></div></label>
-          )}
           <button type="submit" disabled={loading} className={styles.submitBtn}>
             {loading ? "Création…" : "Créer mon compte"}
           </button>
         </form>
+
+        <p className={`text-center mt-2 ${styles.subtitle}`} style={{ fontSize: 13 }}>
+          Vous pourrez devenir hôte plus tard depuis votre profil.
+        </p>
 
         <p className={`text-center mt-6 ${styles.footerText}`}>
           Déjà inscrit ? <Link href="/login" className={styles.footerLink}>Se connecter</Link>
