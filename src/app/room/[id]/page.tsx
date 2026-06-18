@@ -8,7 +8,12 @@ import {
 } from "lucide-react";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
 import { formatFCFA, annonceToRoom, fallbackRooms, type Room } from "@/data/rooms";
-import { getAnnonce, getAvis, type AvisItem } from "@/lib/api";
+import {
+  getAnnonce, getAvis, getMesReservations, getPeutNoter, createAvis,
+  type AvisItem, type Reservation,
+} from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import styles from "../room.module.css";
 
 const allAmenities: Record<string, { icon: React.ReactNode; label: string }> = {
@@ -34,6 +39,8 @@ export default function RoomDetailPage() {
   const params = useParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
+  const { user, isAuthenticated } = useAuth();
+  const { showToast } = useToast();
 
   const [room, setRoom] = useState<Room | null>(null);
   const [reviews, setReviews] = useState<DisplayReview[]>([]);
@@ -43,6 +50,12 @@ export default function RoomDetailPage() {
   const [checkin, setCheckin] = useState("");
   const [checkout, setCheckout] = useState("");
   const [guests, setGuests] = useState(2);
+
+  const [eligibleReservation, setEligibleReservation] = useState<Reservation | null>(null);
+  const [ratingNote, setRatingNote] = useState(0);
+  const [ratingHover, setRatingHover] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -67,6 +80,58 @@ export default function RoomDetailPage() {
       setLoading(false);
     })();
   }, [id]);
+
+  useEffect(() => {
+    (async () => {
+      if (!isAuthenticated || !user || user.role !== "CLIENT" || !id) return;
+
+      const { data: reservations } = await getMesReservations();
+      const candidates = (reservations || [])
+        .filter((r) => String(r.annonce_id) === String(id) && (r.statut === "CONFIRMEE" || r.statut === "TERMINEE"));
+
+      for (const candidate of candidates) {
+        const { data } = await getPeutNoter(candidate.idreservation);
+        if (data?.peut_noter) {
+          setEligibleReservation(candidate);
+          break;
+        }
+      }
+    })();
+  }, [id, user, isAuthenticated]);
+
+  const handleSubmitRating = async () => {
+    if (!eligibleReservation) return;
+    if (ratingNote < 1) {
+      showToast("Sélectionnez une note en étoiles avant d'envoyer.", "error");
+      return;
+    }
+    setRatingSubmitting(true);
+    const { data, error } = await createAvis({
+      reservation_id: eligibleReservation.idreservation,
+      note: ratingNote,
+      commentaire: ratingComment || undefined,
+    });
+    setRatingSubmitting(false);
+
+    if (error || !data) {
+      showToast(error || "Erreur lors de l'envoi de votre avis.", "error");
+      return;
+    }
+
+    showToast("Merci pour votre avis !", "success");
+    setReviews((prev) => [
+      {
+        name: [user?.prenom, user?.nom].filter(Boolean).join(" ") || "Vous",
+        city: "", rating: ratingNote,
+        date: new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
+        text: ratingComment || "—",
+      },
+      ...prev,
+    ]);
+    setEligibleReservation(null);
+    setRatingNote(0);
+    setRatingComment("");
+  };
 
   if (loading || !room) {
     return <div className={styles.loading + " mx-auto px-6 max-w-5xl"}>
@@ -183,6 +248,46 @@ export default function RoomDetailPage() {
                   <div className={styles.reviewCount}>{room.reviews} avis</div>
                 </div>
               </div>
+              {eligibleReservation && (
+                <div className={`rounded-2xl p-6 ${styles.ratingFormCard}`}>
+                  <h3 className={`mb-4 ${styles.ratingFormTitle}`}>Laisser un avis sur votre séjour</h3>
+                  <div className="flex items-center gap-1 mb-4">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        className={styles.starBtn}
+                        onMouseEnter={() => setRatingHover(n)}
+                        onMouseLeave={() => setRatingHover(0)}
+                        onClick={() => setRatingNote(n)}
+                        aria-label={`${n} étoile${n > 1 ? "s" : ""}`}
+                      >
+                        <Star
+                          size={28}
+                          fill={n <= (ratingHover || ratingNote) ? "#C9943A" : "none"}
+                          color="#C9943A"
+                          strokeWidth={1.5}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={ratingComment}
+                    onChange={(e) => setRatingComment(e.target.value)}
+                    placeholder="Partagez votre expérience (optionnel)"
+                    rows={3}
+                    className={`mb-4 ${styles.ratingTextarea}`}
+                  />
+                  <button
+                    onClick={handleSubmitRating}
+                    disabled={ratingSubmitting}
+                    className={styles.ratingSubmitBtn}
+                  >
+                    {ratingSubmitting ? "Envoi en cours…" : "Publier mon avis"}
+                  </button>
+                </div>
+              )}
+
               {reviews.map((rev, i) => (
                 <div key={i} className={`rounded-2xl p-6 ${styles.reviewCard}`}>
                   <div className="flex items-start justify-between mb-4">

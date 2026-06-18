@@ -323,6 +323,17 @@ export async function getMesAvis() {
   return apiFetch<AvisItem[]>("/api/evaluations/mes-avis");
 }
 
+export interface PeutNoterResponse {
+  peut_noter: boolean;
+  raison?: "AVIS_DEJA_LAISSE" | "RESERVATION_NON_CONFIRMEE" | "MI_DUREE_NON_ATTEINTE";
+  date_a_partir_de?: string;
+}
+
+/** Indique si le client peut laisser un avis pour une réservation donnée. */
+export async function getPeutNoter(reservationId: number) {
+  return apiFetch<PeutNoterResponse>(`/api/evaluations/peut-noter/${reservationId}`);
+}
+
 // ══════════════════════════════════════════════════════════
 //  DEVENIR HÔTE   (montées sur /api/utilisateurs)
 // ══════════════════════════════════════════════════════════

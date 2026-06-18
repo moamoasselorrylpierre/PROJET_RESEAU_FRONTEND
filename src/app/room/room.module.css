@@ -370,3 +370,435 @@
   background: #F7F3EC;
   padding-top: 120px;
 }
+/* Room detail page */
+
+.pageWrap {
+  background: #F7F3EC;
+  min-height: 100vh;
+  padding-top: 72px;
+}
+
+.container {
+  max-width: 1440px;
+}
+
+.backBtn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: #1A3C2E;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.galleryWrap {
+  height: 480px;
+}
+
+.galleryNavBtn {
+  width: 44px;
+  height: 44px;
+  background: rgba(255,255,255,0.9);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+
+.galleryBadge {
+  background: #C4622D;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+
+.galleryCounter {
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: #fff;
+}
+
+.thumbBtn {
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  width: 90px;
+  height: 64px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.roomHotel {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  font-size: 16px;
+  color: #C9943A;
+}
+
+.roomName {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 48px;
+  font-weight: 600;
+  color: #1A3C2E;
+  line-height: 1.1;
+}
+
+.roomLocation {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: rgba(28,28,28,0.55);
+}
+
+.roomRatingBadge {
+  background: linear-gradient(135deg, #C9943A, #D9A84A);
+}
+
+.roomRatingText {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A3C2E;
+}
+
+.roomReviews {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: rgba(28,28,28,0.45);
+}
+
+.roomMeta {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: rgba(28,28,28,0.55);
+}
+
+.tabBar {
+  background: #fff;
+  border: 1px solid rgba(26,60,46,0.08);
+  display: inline-flex;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tabBtn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+.tabActive {
+  background: #1A3C2E;
+  color: #fff;
+  font-weight: 600;
+}
+
+.tabInactive {
+  background: transparent;
+  color: rgba(28,28,28,0.6);
+  font-weight: 400;
+}
+
+.contentCard {
+  background: #fff;
+  border: 1px solid rgba(26,60,46,0.07);
+  border-radius: 16px;
+}
+
+.contentText {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  color: rgba(28,28,28,0.75);
+  line-height: 1.85;
+}
+
+.amenityItem {
+  background: #F7F3EC;
+  border: 1px solid rgba(26,60,46,0.07);
+}
+
+.amenityIconWrap {
+  width: 40px;
+  height: 40px;
+  background: rgba(26,60,46,0.08);
+  color: #1A3C2E;
+}
+
+.amenityLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1C1C1C;
+}
+
+.reviewSummary {
+  background: #fff;
+  border: 1px solid rgba(26,60,46,0.07);
+}
+
+.reviewScore {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 56px;
+  font-weight: 700;
+  color: #1A3C2E;
+  line-height: 1;
+}
+
+.reviewCount {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: rgba(28,28,28,0.45);
+}
+
+.reviewCard {
+  background: #fff;
+  border: 1px solid rgba(26,60,46,0.07);
+  border-left: 4px solid #C4622D;
+}
+
+.reviewAvatar {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, #1A3C2E, #2A5C44);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #C9943A;
+}
+
+.reviewName {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1C1C1C;
+}
+
+.reviewMeta {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  font-size: 13px;
+  color: #C4622D;
+}
+
+.reviewText {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: rgba(28,28,28,0.7);
+  line-height: 1.75;
+  font-style: italic;
+}
+
+.locationWrap {
+  border: 1px solid rgba(26,60,46,0.08);
+}
+
+.locationMap {
+  height: 380px;
+  background: linear-gradient(135deg, #1A3C2E 0%, #2A5C44 50%, #1A3C2E 100%);
+}
+
+.locationIconWrap {
+  width: 56px;
+  height: 56px;
+  background: rgba(201,148,58,0.25);
+  border: 2px solid #C9943A;
+}
+
+.locationName {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: #F7F3EC;
+}
+
+.locationMeta {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: rgba(247,243,236,0.55);
+}
+
+/* Booking Widget */
+.widget {
+  width: 340px;
+  background: #fff;
+  border: 1px solid rgba(26,60,46,0.1);
+  box-shadow: 0 8px 40px rgba(26,60,46,0.1);
+  height: fit-content;
+  position: sticky;
+  top: 100px;
+}
+
+.widgetPrice {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 36px;
+  font-weight: 700;
+  color: #C9943A;
+}
+
+.widgetPeriod {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: rgba(28,28,28,0.45);
+}
+
+.widgetLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #C9943A;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.widgetInput {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: #1C1C1C;
+  background: #F7F3EC;
+  border: 1px solid rgba(26,60,46,0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+}
+
+.guestStepper {
+  background: #F7F3EC;
+  border: 1px solid rgba(26,60,46,0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.guestBtn {
+  background: rgba(26,60,46,0.1);
+  border: none;
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #1A3C2E;
+}
+
+.guestCount {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1C1C1C;
+}
+
+.totalBox {
+  background: #F7F3EC;
+  border: 1px solid rgba(201,148,58,0.2);
+}
+
+.totalLine {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+}
+
+.totalPrice {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #C9943A;
+}
+
+.totalLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1C1C1C;
+}
+
+.widgetBtn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1A3C2E;
+  background: linear-gradient(135deg, #C9943A, #D9A84A);
+  border: none;
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(201,148,58,0.35);
+}
+
+.widgetNote {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: #C4622D;
+  line-height: 1.5;
+}
+
+.loading {
+  min-height: 100vh;
+  background: #F7F3EC;
+  padding-top: 120px;
+}
+
+/* Formulaire de notation */
+
+.ratingFormCard {
+  background: #fff;
+  border: 1px solid rgba(26,60,46,0.07);
+}
+
+.ratingFormTitle {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1C1C1C;
+}
+
+.starBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  line-height: 0;
+}
+
+.ratingTextarea {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: #1C1C1C;
+  background: #F7F3EC;
+  border: 1px solid rgba(26,60,46,0.15);
+  border-radius: 10px;
+  padding: 12px 14px;
+  width: 100%;
+  resize: vertical;
+  outline: none;
+}
+
+.ratingSubmitBtn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1A3C2E;
+  background: linear-gradient(135deg, #C9943A, #D9A84A);
+  border: none;
+  border-radius: 10px;
+  padding: 12px 24px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(201,148,58,0.3);
+}
+
+.ratingSubmitBtn:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.ratingWaitNote {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: rgba(28,28,28,0.55);
+  background: #F7F3EC;
+}
