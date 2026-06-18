@@ -44,7 +44,6 @@ export function annonceToRoom(a: Annonce): Room {
   const note = Number(a.note_moyenne ?? 0);
   const imgs = (a.images || []).filter(Boolean).map((u) => imageUrl(u));
   const hotel =
-    a.raison_sociale ||
     [a.hote_prenom, a.hote_nom].filter(Boolean).join(" ") ||
     "Hôte KamerStay";
 

@@ -25,7 +25,6 @@ export interface User {
   prenom: string;
   email: string;
   role: Role;
-  raison_sociale?: string;
   statut_verification?: StatutVerification;
 }
 
@@ -49,7 +48,6 @@ export interface Annonce {
   nb_reservations?: number | string;
   hote_nom?: string;
   hote_prenom?: string;
-  raison_sociale?: string;
   datepublication?: string;
 }
 
@@ -129,7 +127,6 @@ export function normalizeUser(raw: Record<string, unknown>): User {
     prenom: String(raw.prenom ?? ""),
     email: String(raw.email ?? ""),
     role: normalizedRole,
-    raison_sociale: (raw.raison_sociale as string) || undefined,
     statut_verification: (raw.statut_verification as StatutVerification) || undefined,
   };
 }
@@ -188,7 +185,7 @@ export async function login(payload: { email: string; mot_de_passe: string }) {
 }
 
 export async function register(payload: {
-  nom: string; prenom: string; email: string; mot_de_passe: string; role: Role; raison_sociale?: string;
+  nom: string; prenom: string; email: string; mot_de_passe: string; role: Role;
 }) {
   const res = await apiFetch<{ token: string; utilisateur: Record<string, unknown> }>(
     "/api/auth/inscription",
@@ -197,7 +194,6 @@ export async function register(payload: {
       body: JSON.stringify({
         email: payload.email, nom: payload.nom, prenom: payload.prenom,
         motDePasse: payload.mot_de_passe, typeCompte: payload.role,
-        raison_sociale: payload.raison_sociale,
       }),
     }
   );
@@ -209,6 +205,17 @@ export async function getMe() {
   const res = await apiFetch<Record<string, unknown>>("/api/auth/profil");
   if (res.data) return { data: normalizeUser(res.data), error: res.error, status: res.status };
   return { data: null as User | null, error: res.error, status: res.status };
+}
+
+/** Change le mot de passe de l'utilisateur connecté (ancien + nouveau). */
+export async function changerMotDePasse(payload: { ancien_mot_de_passe: string; nouveau_mot_de_passe: string }) {
+  return apiFetch<{ message: string }>("/api/auth/mot-de-passe", {
+    method: "PUT",
+    body: JSON.stringify({
+      ancienMotDePasse: payload.ancien_mot_de_passe,
+      nouveauMotDePasse: payload.nouveau_mot_de_passe,
+    }),
+  });
 }
 
 // ══════════════════════════════════════════════════════════

@@ -25,7 +25,6 @@ export interface RegisterPayload {
   email: string;
   mot_de_passe: string;
   role: "CLIENT" | "HOTE";
-  raison_sociale?: string;
 }
 
 // ══════════════════════════════════════════════════════════

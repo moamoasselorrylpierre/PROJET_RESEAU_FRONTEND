@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   LogOut, Mail, User as UserIcon, BadgeCheck,
-  LayoutDashboard, CalendarCheck, Phone, CreditCard, Upload, Clock, XCircle,
+  LayoutDashboard, CalendarCheck, Phone, CreditCard, Upload, Clock, XCircle, Lock,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { signOut } from "@/lib/auth";
-import { demanderDevenirHote, getStatutVerification, StatutVerification } from "@/lib/api";
+import { demanderDevenirHote, getStatutVerification, changerMotDePasse, StatutVerification } from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
 import styles from "./profile.module.css";
 
@@ -25,6 +25,12 @@ export default function ProfilePage() {
   const [fournisseur, setFournisseur] = useState("");
   const [identifiant, setIdentifiant] = useState("");
   const [photoCni, setPhotoCni] = useState<File | null>(null);
+
+  const [showPwdForm, setShowPwdForm] = useState(false);
+  const [pwdSubmitting, setPwdSubmitting] = useState(false);
+  const [ancienMdp, setAncienMdp] = useState("");
+  const [nouveauMdp, setNouveauMdp] = useState("");
+  const [confirmMdp, setConfirmMdp] = useState("");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.replace("/login?redirect=/profile");
@@ -61,6 +67,38 @@ export default function ProfilePage() {
     showToast(data.message, "success");
     setStatutVerif(data.statut_verification);
     setShowForm(false);
+  };
+
+  const handleChangerMotDePasse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ancienMdp || !nouveauMdp || !confirmMdp) {
+      showToast("Tous les champs sont obligatoires.", "error");
+      return;
+    }
+    if (nouveauMdp.length < 6) {
+      showToast("Le nouveau mot de passe doit contenir au moins 6 caractères.", "error");
+      return;
+    }
+    if (nouveauMdp !== confirmMdp) {
+      showToast("Les deux mots de passe ne correspondent pas.", "error");
+      return;
+    }
+    setPwdSubmitting(true);
+    const { data, error } = await changerMotDePasse({
+      ancien_mot_de_passe: ancienMdp,
+      nouveau_mot_de_passe: nouveauMdp,
+    });
+    setPwdSubmitting(false);
+
+    if (error || !data) {
+      showToast(error || "Erreur lors du changement de mot de passe.", "error");
+      return;
+    }
+    showToast(data.message || "Mot de passe modifié avec succès.", "success");
+    setAncienMdp("");
+    setNouveauMdp("");
+    setConfirmMdp("");
+    setShowPwdForm(false);
   };
 
   if (isLoading || !user) {
@@ -100,6 +138,69 @@ export default function ProfilePage() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className={`rounded-2xl p-7 mb-6 ${styles.detailCard}`}>
+          <h2 className={`mb-5 ${styles.detailTitle}`}>Sécurité</h2>
+
+          {!showPwdForm && (
+            <button onClick={() => setShowPwdForm(true)} className={`rounded-xl px-6 py-3 ${styles.primaryLink}`}>
+              Changer mon mot de passe
+            </button>
+          )}
+
+          {showPwdForm && (
+            <form onSubmit={handleChangerMotDePasse} className="flex flex-col gap-4">
+              <div className="flex items-center gap-4 p-4 rounded-xl" style={{ background: "#F7F3EC" }}>
+                <Lock size={18} color="#1A3C2E" />
+                <input
+                  type="password"
+                  placeholder="Ancien mot de passe"
+                  value={ancienMdp}
+                  onChange={(e) => setAncienMdp(e.target.value)}
+                  className="w-full bg-transparent outline-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-xl" style={{ background: "#F7F3EC" }}>
+                <Lock size={18} color="#1A3C2E" />
+                <input
+                  type="password"
+                  placeholder="Nouveau mot de passe (6 caractères min.)"
+                  value={nouveauMdp}
+                  onChange={(e) => setNouveauMdp(e.target.value)}
+                  className="w-full bg-transparent outline-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-xl" style={{ background: "#F7F3EC" }}>
+                <Lock size={18} color="#1A3C2E" />
+                <input
+                  type="password"
+                  placeholder="Confirmer le nouveau mot de passe"
+                  value={confirmMdp}
+                  onChange={(e) => setConfirmMdp(e.target.value)}
+                  className="w-full bg-transparent outline-none"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button type="submit" disabled={pwdSubmitting} className={`flex-1 rounded-xl px-6 py-3 ${styles.primaryLink}`}>
+                  {pwdSubmitting ? "Modification en cours…" : "Valider"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowPwdForm(false); setAncienMdp(""); setNouveauMdp(""); setConfirmMdp(""); }}
+                  className={`flex-1 rounded-xl ${styles.logoutBtn}`}
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         {user.role === "CLIENT" && (
