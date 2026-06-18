@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ImagePlus } from "lucide-react";
-import { createAnnonce } from "@/lib/api";
+import { createAnnonce, getEquipements, type Equipement } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import styles from "../host-listings.module.css";
@@ -25,6 +25,11 @@ export default function CreateListingPage() {
   const [adresse, setAdresse] = useState("");
   const [prix, setPrix] = useState("");
   const [capacite, setCapacite] = useState(1);
+  const [superficie, setSuperficie] = useState("");
+  const [dateDebut, setDateDebut] = useState("");
+  const [dateFin, setDateFin] = useState("");
+  const [equipements, setEquipements] = useState<Equipement[]>([]);
+  const [selectedEquip, setSelectedEquip] = useState<string[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -33,6 +38,16 @@ export default function CreateListingPage() {
     if (!isLoading && !isAuthenticated) { router.replace("/login?redirect=/host/listings/create"); return; }
     if (!isLoading && user && user.role !== "HOTE") { showToast("Espace réservé aux hôtes.", "info"); router.replace("/"); }
   }, [isLoading, isAuthenticated, user, router, showToast]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await getEquipements();
+      if (data) setEquipements(data);
+    })();
+  }, []);
+
+  const toggleEquip = (code: string) =>
+    setSelectedEquip((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]));
 
   function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const list = Array.from(e.target.files || []).slice(0, 5);
@@ -43,6 +58,12 @@ export default function CreateListingPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titre || !ville || !prix) { showToast("Titre, ville et prix sont obligatoires.", "error"); return; }
+    if ((dateDebut && !dateFin) || (!dateDebut && dateFin)) {
+      showToast("Renseignez les deux dates de validité, ou aucune.", "error"); return;
+    }
+    if (dateDebut && dateFin && dateFin < dateDebut) {
+      showToast("La date de fin de validité doit suivre la date de début.", "error"); return;
+    }
     setSaving(true);
     const form = new FormData();
     form.append("titre", titre);
@@ -52,6 +73,10 @@ export default function CreateListingPage() {
     form.append("adresse", adresse);
     form.append("prixParNuit", String(prix));
     form.append("capacite", String(capacite));
+    if (superficie) form.append("superficie", String(superficie));
+    if (dateDebut) form.append("date_debut_validite", dateDebut);
+    if (dateFin) form.append("date_fin_validite", dateFin);
+    form.append("equipements", JSON.stringify(selectedEquip));
     files.forEach((f) => form.append("images", f));
     const { error } = await createAnnonce(form);
     setSaving(false);
@@ -86,6 +111,28 @@ export default function CreateListingPage() {
               </div>
             </Field>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Superficie (m²) — optionnel"><input className={styles.input} type="number" min={0} value={superficie} onChange={(e) => setSuperficie(e.target.value)} placeholder="30" /></Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Disponible du (optionnel)"><input className={styles.input} type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} /></Field>
+            <Field label="Disponible jusqu'au (optionnel)"><input className={styles.input} type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} /></Field>
+          </div>
+
+          {equipements.length > 0 && (
+            <Field label="Équipements">
+              <div className="flex flex-wrap gap-2.5">
+                {equipements.map((eq) => (
+                  <label key={eq.code} className="flex items-center gap-2 cursor-pointer" style={{ border: "1px solid rgba(26,60,46,0.15)", borderRadius: "20px", padding: "6px 12px", background: selectedEquip.includes(eq.code) ? "rgba(201,148,58,0.18)" : "transparent" }}>
+                    <input type="checkbox" checked={selectedEquip.includes(eq.code)} onChange={() => toggleEquip(eq.code)} />
+                    <span className={styles.fieldLabel}>{eq.nom}</span>
+                  </label>
+                ))}
+              </div>
+            </Field>
+          )}
 
           <Field label="Photos (jusqu'à 5)">
             <label className={`${styles.uploader} flex items-center gap-3 rounded-xl cursor-pointer`}>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Star, MapPin, Wifi, Wind, Coffee, Waves, Shield, Tv, Droplets,
-  Eye, ArrowLeft, ChevronLeft, ChevronRight, Users, Maximize2,
+  Eye, ArrowLeft, ChevronLeft, ChevronRight, Users, Maximize2, Car, Utensils,
 } from "lucide-react";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
 import { formatFCFA, annonceToRoom, fallbackRooms, type Room } from "@/data/rooms";
@@ -26,6 +26,8 @@ const allAmenities: Record<string, { icon: React.ReactNode; label: string }> = {
   tv: { icon: <Tv size={18} />, label: "Télévision" },
   shower: { icon: <Droplets size={18} />, label: "Eau chaude" },
   view: { icon: <Eye size={18} />, label: "Vue panoramique" },
+  parking: { icon: <Car size={18} />, label: "Parking" },
+  kitchen: { icon: <Utensils size={18} />, label: "Cuisine" },
 };
 
 interface DisplayReview { name: string; city: string; rating: number; date: string; text: string }
@@ -142,7 +144,8 @@ export default function RoomDetailPage() {
   const nights = checkin && checkout
     ? Math.max(1, Math.ceil((new Date(checkout).getTime() - new Date(checkin).getTime()) / 86400000))
     : 2;
-  const amenityList = [...room.amenities, "tv", "shower", "view"].filter((v, i, a) => a.indexOf(v) === i);
+  // Équipements réels de l'annonce (point 16) ; on n'ajoute plus de faux équipements
+  const amenityList = room.amenities.filter((v, i, a) => a.indexOf(v) === i);
 
   function goBooking() {
     const p = new URLSearchParams({ room: String(room!.id), guests: String(guests) });

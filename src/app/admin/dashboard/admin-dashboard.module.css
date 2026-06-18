@@ -134,6 +134,22 @@
   flex-shrink: 0;
 }
 
+.adminInput {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: #1C1C1C;
+  background: #fff;
+  border: 1px solid rgba(26,60,46,0.18);
+  border-radius: 8px;
+  padding: 10px 14px;
+  outline: none;
+  width: 100%;
+}
+
+.adminInput:focus {
+  border-color: #C9943A;
+}
+
 .emptyCard {
   background: #fff;
   border: 1px solid rgba(26,60,46,0.08);

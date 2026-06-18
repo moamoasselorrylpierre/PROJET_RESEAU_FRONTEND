@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Home, Clock, Check, X, MapPin, Star } from "lucide-react";
+import { Users, Home, Clock, Check, X, MapPin, Star, ShieldPlus } from "lucide-react";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
 import { formatFCFA } from "@/data/rooms";
 import { imageUrl } from "@/lib/images";
 import {
   getUtilisateursAdmin, approuverUtilisateur, rejeterUtilisateur,
-  getAnnoncesAdmin, supprimerAnnonceAdmin,
-  type UtilisateurAdmin, type Annonce,
+  getAnnoncesAdmin, supprimerAnnonceAdmin, getAdmins, creerAdmin,
+  type UtilisateurAdmin, type Annonce, type AdminCompte,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -20,9 +20,13 @@ export default function AdminDashboardPage() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { showToast } = useToast();
 
-  const [tab, setTab] = useState<"comptes" | "annonces">("comptes");
+  const isSuperAdmin = !!user?.est_super_admin;
+  const [tab, setTab] = useState<"comptes" | "annonces" | "admins">("comptes");
   const [demandes, setDemandes] = useState<UtilisateurAdmin[]>([]);
   const [annonces, setAnnonces] = useState<Annonce[]>([]);
+  const [admins, setAdmins] = useState<AdminCompte[]>([]);
+  const [newAdmin, setNewAdmin] = useState({ email: "", nom: "", prenom: "", motDePasse: "" });
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -33,8 +37,12 @@ export default function AdminDashboardPage() {
     ]);
     setDemandes(d.data || []);
     setAnnonces(a.data || []);
+    if (user?.est_super_admin) {
+      const ad = await getAdmins();
+      setAdmins(ad.data || []);
+    }
     setLoading(false);
-  }, []);
+  }, [user?.est_super_admin]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) { router.replace("/login?redirect=/admin/dashboard"); return; }
@@ -62,6 +70,20 @@ export default function AdminDashboardPage() {
     showToast("Annonce supprimée.", "info"); load();
   }
 
+  async function addAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newAdmin.email || !newAdmin.nom || !newAdmin.prenom || !newAdmin.motDePasse) {
+      showToast("Tous les champs sont obligatoires.", "error"); return;
+    }
+    setCreatingAdmin(true);
+    const { error } = await creerAdmin(newAdmin);
+    setCreatingAdmin(false);
+    if (error) { showToast(error, "error"); return; }
+    showToast("Administrateur créé.", "success");
+    setNewAdmin({ email: "", nom: "", prenom: "", motDePasse: "" });
+    load();
+  }
+
   return (
     <div className={styles.pageWrap}>
       <div className={`mx-auto px-6 ${styles.container}`}>
@@ -86,7 +108,11 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="flex gap-2 mb-6">
-          {([["comptes", "Comptes à valider"], ["annonces", "Annonces"]] as const).map(([t, label]) => (
+          {(([
+            ["comptes", "Comptes à valider"],
+            ["annonces", "Annonces"],
+            ...(isSuperAdmin ? [["admins", "Administrateurs"]] : []),
+          ]) as [("comptes" | "annonces" | "admins"), string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`${styles.tabBtn} ${tab === t ? styles.tabActive : styles.tabInactive}`}>{label}</button>
           ))}
@@ -129,7 +155,7 @@ export default function AdminDashboardPage() {
               ))}
             </div>
           )
-        ) : (
+        ) : tab === "annonces" ? (
           annonces.length === 0 ? (
             <Empty title="Aucune annonce" text="Les annonces publiées par les hôtes apparaîtront ici." icon={Home} />
           ) : (
@@ -155,6 +181,39 @@ export default function AdminDashboardPage() {
               ))}
             </div>
           )
+        ) : (
+          <div className="flex flex-col gap-6">
+            <form onSubmit={addAdmin} className={`rounded-2xl p-6 ${styles.itemCard} flex flex-col gap-4`}>
+              <h3 className={styles.itemTitle}>Créer un administrateur</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input className={styles.adminInput} placeholder="Prénom" value={newAdmin.prenom} onChange={(e) => setNewAdmin({ ...newAdmin, prenom: e.target.value })} />
+                <input className={styles.adminInput} placeholder="Nom" value={newAdmin.nom} onChange={(e) => setNewAdmin({ ...newAdmin, nom: e.target.value })} />
+                <input className={styles.adminInput} type="email" placeholder="Email" value={newAdmin.email} onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })} />
+                <input className={styles.adminInput} type="password" placeholder="Mot de passe (min. 6)" value={newAdmin.motDePasse} onChange={(e) => setNewAdmin({ ...newAdmin, motDePasse: e.target.value })} />
+              </div>
+              <button type="submit" disabled={creatingAdmin} className={`flex items-center gap-1.5 self-start ${styles.btnPrimary}`}>
+                <ShieldPlus size={15} /> {creatingAdmin ? "Création…" : "Créer l'administrateur"}
+              </button>
+            </form>
+
+            {admins.length === 0 ? (
+              <Empty title="Aucun administrateur" text="Les comptes administrateurs apparaîtront ici." icon={Users} />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {admins.map((ad) => (
+                  <div key={ad.id} className={`rounded-2xl p-5 flex items-center justify-between ${styles.itemCard}`}>
+                    <div>
+                      <h3 className={styles.itemTitle}>{ad.prenom} {ad.nom}</h3>
+                      <span className={styles.itemMeta}>✉️ {ad.email}</span>
+                    </div>
+                    {ad.est_super_admin && (
+                      <span className={styles.statusBadge} style={{ color: "#1A3C2E", background: "#D7EBDD" }}>Super-admin</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -3,13 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, MapPin, Users, Star, Calendar, Home, CalendarRange } from "lucide-react";
+import { Plus, Pencil, Trash2, MapPin, Users, Star, Calendar, Home, CalendarRange, Wallet, TrendingUp } from "lucide-react";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
 import { formatFCFA } from "@/data/rooms";
 import { imageUrl } from "@/lib/images";
 import {
-  getMesAnnonces, deleteAnnonce, getReservationsHote, refuserReservation, annulerReservation,
-  type Annonce, type Reservation, type StatutReservation,
+  getMesAnnonces, deleteAnnonce, getReservationsHote, refuserReservation, annulerReservation, getGainsHote,
+  type Annonce, type Reservation, type StatutReservation, type GainsHote,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -32,16 +32,18 @@ export default function HostDashboardPage() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { showToast } = useToast();
 
-  const [tab, setTab] = useState<"annonces" | "reservations">("annonces");
+  const [tab, setTab] = useState<"annonces" | "reservations" | "gains">("annonces");
   const [annonces, setAnnonces] = useState<Annonce[]>([]);
   const [resas, setResas] = useState<Reservation[]>([]);
+  const [gains, setGains] = useState<GainsHote | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [a, r] = await Promise.all([getMesAnnonces(), getReservationsHote()]);
+    const [a, r, g] = await Promise.all([getMesAnnonces(), getReservationsHote(), getGainsHote()]);
     setAnnonces(a.data || []);
     setResas(r.data || []);
+    setGains(g.data || null);
     setLoading(false);
   }, []);
 
@@ -100,7 +102,7 @@ export default function HostDashboardPage() {
         </div>
 
         <div className="flex gap-2 mb-6">
-          {([["annonces", "Mes annonces"], ["reservations", "Réservations reçues"]] as const).map(([t, label]) => (
+          {([["annonces", "Mes annonces"], ["reservations", "Réservations reçues"], ["gains", "Mes gains"]] as const).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`${styles.tabBtn} ${tab === t ? styles.tabActive : styles.tabInactive}`}>{label}</button>
           ))}
@@ -138,7 +140,7 @@ export default function HostDashboardPage() {
               ))}
             </div>
           )
-        ) : (
+        ) : tab === "reservations" ? (
           resas.length === 0 ? (
             <Empty title="Aucune réservation" text="Les réservations de vos chambres apparaîtront ici." />
           ) : (
@@ -157,7 +159,19 @@ export default function HostDashboardPage() {
                       <span className="flex items-center gap-1.5"><Users size={14} color="#1A3C2E" />{r.nombrepersonnes} pers.</span>
                     </div>
                     <div className={`flex items-center justify-between pt-3 ${styles.divider}`}>
-                      <span className={styles.reservationPrice}>{formatFCFA(Number(r.montanttotal))}</span>
+                      <div>
+                        <span className={styles.reservationPrice}>{formatFCFA(Number(r.montanttotal))}</span>
+                        {r.montant_paye != null ? (
+                          <span className={styles.reservationMeta} style={{ marginLeft: 10 }}>
+                            · Payé : {formatFCFA(Number(r.montant_paye))}
+                            {r.statut_paiement === "PARTIEL"
+                              ? ` (acompte 50% — reste ${formatFCFA(Number(r.montanttotal) - Number(r.montant_paye))})`
+                              : " (intégral)"}
+                          </span>
+                        ) : (
+                          <span className={styles.reservationMeta} style={{ marginLeft: 10 }}>· Non payé</span>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         {r.statut === "EN_ATTENTE" && (<button onClick={() => refuse(r)} className={styles.btnOutline}>Refuser</button>)}
                         {(r.statut === "EN_ATTENTE" || r.statut === "CONFIRMEE") && (<button onClick={() => cancel(r)} className={styles.btnOutline}>Annuler</button>)}
@@ -168,6 +182,42 @@ export default function HostDashboardPage() {
               })}
             </div>
           )
+        ) : (
+          <div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {[
+                { Icon: Wallet, label: "Total brut encaissé", value: Number(gains?.total_brut || 0) },
+                { Icon: TrendingUp, label: "Commission plateforme", value: Number(gains?.total_commission || 0) },
+                { Icon: Wallet, label: "Net reversé à vous", value: Number(gains?.total_net || 0) },
+              ].map(({ Icon, label, value }) => (
+                <div key={label} className={`rounded-2xl p-5 flex items-center gap-4 ${styles.statCard}`}>
+                  <div className={`flex items-center justify-center rounded-full ${styles.statIconWrap}`}><Icon size={22} color="#1A3C2E" /></div>
+                  <div>
+                    <div className={styles.statValue}>{formatFCFA(value)}</div>
+                    <div className={styles.statLabel}>{label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {gains && gains.par_annonce.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {gains.par_annonce.map((g) => (
+                  <div key={g.annonce_id} className={`rounded-2xl p-5 flex items-center justify-between ${styles.reservationCard}`}>
+                    <div>
+                      <h3 className={styles.reservationTitle}>{g.titre}</h3>
+                      <span className={styles.reservationMeta}>{Number(g.nb_paiements)} paiement(s)</span>
+                    </div>
+                    <div className="text-right">
+                      <div className={styles.reservationPrice}>{formatFCFA(Number(g.net))}</div>
+                      <span className={styles.reservationMeta}>net · brut {formatFCFA(Number(g.brut))}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty title="Aucun gain pour l'instant" text="Vos revenus apparaîtront ici dès qu'un client aura payé une réservation." />
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -15,7 +15,14 @@ import { ImageWithFallback } from "@/components/ImageWithFallback";
 import {
   destinations, testimonials, formatFCFA, fallbackRooms, annonceToRoom, type Room,
 } from "@/data/rooms";
-import { getAnnonces } from "@/lib/api";
+import { getAnnonces, getVillesPopulaires } from "@/lib/api";
+
+// Image par défaut + lookup d'images de villes (réutilise les visuels marketing).
+const CITY_IMG_FALLBACK = "https://images.unsplash.com/photo-1528181304800-259b08848526?w=600&q=80";
+const cityImage = (ville: string): string =>
+  destinations.find((d) => d.name.toLowerCase() === ville.toLowerCase())?.image || CITY_IMG_FALLBACK;
+
+interface DestinationCard { name: string; subtitle: string; hotels: number; image: string; }
 
 const HERO_IMG = "https://images.unsplash.com/photo-1765910639954-27ae0c260586?w=1920&q=90";
 
@@ -159,14 +166,33 @@ function HeroSearchBar() {
 export default function HomePage() {
   const router = useRouter();
   const [displayRooms, setDisplayRooms] = useState<Room[]>([]);
+  const [topVilles, setTopVilles] = useState<DestinationCard[]>(
+    destinations.map((d) => ({ name: d.name, subtitle: d.subtitle, hotels: d.hotels, image: d.image }))
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const { data } = await getAnnonces({ limit: 6 });
+      // Hébergements en vedette = les mieux notés (point 7)
+      const { data } = await getAnnonces({ limit: 6, tri: "populaire" });
       if (data?.annonces?.length) setDisplayRooms(data.annonces.map(annonceToRoom));
       else setDisplayRooms(fallbackRooms);
       setLoading(false);
+    })();
+
+    // Destinations phares = villes avec le plus d'hôtes (point 3)
+    (async () => {
+      const { data } = await getVillesPopulaires(8);
+      if (data?.length) {
+        setTopVilles(
+          data.map((v) => ({
+            name: v.ville,
+            subtitle: `${Number(v.nb_hotes)} hôte(s)`,
+            hotels: Number(v.nb_annonces),
+            image: cityImage(v.ville),
+          }))
+        );
+      }
     })();
   }, []);
 
@@ -205,20 +231,20 @@ export default function HomePage() {
               <p className="mb-2" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, color: "#C9943A", letterSpacing: "0.14em", textTransform: "uppercase" }}>Explorer le pays</p>
               <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "42px", fontWeight: 600, color: "#1A3C2E", lineHeight: 1.1 }}>Destinations phares</h2>
             </div>
-            <button onClick={() => router.push("/search")} className="hidden md:flex items-center gap-2" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "#1A3C2E", background: "none", border: "none", cursor: "pointer" }}>
+            <button onClick={() => router.push("/destinations")} className="hidden md:flex items-center gap-2" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "#1A3C2E", background: "none", border: "none", cursor: "pointer" }}>
               Voir tout <ArrowRight size={16} />
             </button>
           </div>
           <div className="flex gap-5 overflow-x-auto pb-4 no-scrollbar">
-            {destinations.map((dest) => (
-              <div key={dest.id} onClick={() => router.push(`/search?city=${encodeURIComponent(dest.name)}`)} className="relative flex-shrink-0 rounded-2xl overflow-hidden cursor-pointer" style={{ width: "240px", height: "320px" }}>
+            {topVilles.map((dest) => (
+              <div key={dest.name} onClick={() => router.push(`/search?city=${encodeURIComponent(dest.name)}`)} className="relative flex-shrink-0 rounded-2xl overflow-hidden cursor-pointer" style={{ width: "240px", height: "320px" }}>
                 <ImageWithFallback src={dest.image} alt={dest.name} className="w-full h-full object-cover" />
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(26,60,46,0.88) 0%, transparent 55%)" }} />
                 <div className="absolute bottom-0 left-0 right-0 p-5">
                   <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: "22px", fontWeight: 600, color: "#F7F3EC", lineHeight: 1.2 }}>{dest.name}</p>
                   <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "rgba(247,243,236,0.65)", marginTop: "2px" }}>{dest.subtitle}</p>
                   <div className="inline-flex items-center gap-1 mt-3 px-3 py-1 rounded-full" style={{ background: "rgba(201,148,58,0.25)", border: "1px solid rgba(201,148,58,0.5)", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#D9A84A" }}>
-                    {dest.hotels} hôtels disponibles
+                    {dest.hotels} annonce(s)
                   </div>
                 </div>
               </div>

@@ -14,7 +14,6 @@ import {
   ReactNode,
 } from "react";
 import {
-  User,
   getUser,
   getToken,
   saveToken,
@@ -23,6 +22,7 @@ import {
   removeUser,
   isTokenExpired,
 } from "@/lib/auth";
+import { type User } from "@/lib/api";
 import { socketService } from "@/lib/socket";
 
 // ── Types ──────────────────────────────────────────────────

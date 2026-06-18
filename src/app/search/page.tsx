@@ -17,7 +17,9 @@ const amenityIcons: Record<string, React.ReactNode> = {
   wifi: <Wifi size={14} />, ac: <Wind size={14} />, breakfast: <Coffee size={14} />,
   pool: <Waves size={14} />, restaurant: <span className="text-xs">🍽</span>, security: <Shield size={14} />,
 };
-const hotelTypes = ["Hôtel", "Auberge", "Villa", "Lodge", "Bungalow"];
+
+// Limite haute : l'app affiche toutes les chambres disponibles (point 12)
+const FETCH_LIMIT = 1000;
 
 function SearchInner() {
   const router = useRouter();
@@ -27,7 +29,6 @@ function SearchInner() {
   const [allRooms, setAllRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [maxPrice, setMaxPrice] = useState(150000);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedStars, setSelectedStars] = useState<number[]>([]);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState("recommended");
@@ -36,7 +37,7 @@ function SearchInner() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data } = await getAnnonces({ ville: cityParam || undefined, limit: 50 });
+      const { data } = await getAnnonces({ ville: cityParam || undefined, limit: FETCH_LIMIT });
       if (data?.annonces?.length) setAllRooms(data.annonces.map(annonceToRoom));
       else setAllRooms(cityParam ? [] : fallbackRooms);
       setLoading(false);
@@ -71,18 +72,6 @@ function SearchInner() {
       </div>
 
       <div className="mb-8">
-        <h4 className={`mb-4 ${styles.filterTitle}`}>Type d&apos;hébergement</h4>
-        <div className="flex flex-col gap-2.5">
-          {hotelTypes.map((type) => (
-            <label key={type} className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" checked={selectedTypes.includes(type)} onChange={() => setSelectedTypes((p) => p.includes(type) ? p.filter((t) => t !== type) : [...p, type])} className={styles.checkbox} />
-              <span className={styles.filterLabel}>{type}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="mb-8">
         <h4 className={`mb-4 ${styles.filterTitle}`}>Étoiles</h4>
         <div className="flex flex-col gap-2.5">
           {[5, 4, 3].map((n) => (
@@ -106,7 +95,7 @@ function SearchInner() {
         </div>
       </div>
 
-      <button onClick={() => { setMaxPrice(150000); setSelectedTypes([]); setSelectedStars([]); setSelectedAmenities([]); }} className={styles.resetBtn}>
+      <button onClick={() => { setMaxPrice(150000); setSelectedStars([]); setSelectedAmenities([]); }} className={styles.resetBtn}>
         Réinitialiser les filtres
       </button>
     </div>

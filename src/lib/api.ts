@@ -26,6 +26,7 @@ export interface User {
   email: string;
   role: Role;
   statut_verification?: StatutVerification;
+  est_super_admin?: boolean;
 }
 
 /** Annonce telle que renvoyée par le backend (colonnes pg en minuscules). */
@@ -49,6 +50,10 @@ export interface Annonce {
   hote_nom?: string;
   hote_prenom?: string;
   datepublication?: string;
+  superficie?: number | string | null;
+  date_debut_validite?: string | null;
+  date_fin_validite?: string | null;
+  equipements?: string[] | null;
 }
 
 export type StatutReservation =
@@ -76,6 +81,10 @@ export interface Reservation {
   client_nom?: string;
   client_prenom?: string;
   client_email?: string;
+  // paiement (vue hôte)
+  montant_paye?: number | string | null;
+  statut_paiement?: "PARTIEL" | "COMPLET" | null;
+  montant_hote?: number | string | null;
 }
 
 export interface AvisItem {
@@ -101,6 +110,36 @@ export interface SearchParams {
   prix_max?: number;
   page?: number;
   limit?: number;
+  tri?: "populaire";
+}
+
+export interface VillePopulaire {
+  ville: string;
+  nb_hotes: number | string;
+  nb_annonces: number | string;
+}
+
+export interface Equipement {
+  id: number;
+  code: string;
+  nom: string;
+}
+
+export interface GainsHote {
+  total_brut: number | string;
+  total_commission: number | string;
+  total_net: number | string;
+  nb_paiements: number | string;
+  par_annonce: { annonce_id: number; titre: string; brut: number | string; net: number | string; nb_paiements: number | string }[];
+}
+
+export interface AdminCompte {
+  id: number;
+  email: string;
+  nom: string;
+  prenom: string;
+  est_super_admin?: boolean;
+  dateverification?: string;
 }
 
 export interface Pagination {
@@ -128,6 +167,7 @@ export function normalizeUser(raw: Record<string, unknown>): User {
     email: String(raw.email ?? ""),
     role: normalizedRole,
     statut_verification: (raw.statut_verification as StatutVerification) || undefined,
+    est_super_admin: raw.est_super_admin === true,
   };
 }
 
@@ -257,6 +297,16 @@ export async function deleteAnnonceImage(id: number, imageId: number) {
   return apiFetch<{ message: string }>(`/api/annonces/${id}/images/${imageId}`, { method: "DELETE" });
 }
 
+/** Villes avec le plus d'hôtes (destinations populaires — point 3). */
+export async function getVillesPopulaires(limit = 10) {
+  return apiFetch<VillePopulaire[]>(`/api/annonces/villes-populaires?limit=${limit}`);
+}
+
+/** Liste fixe des équipements disponibles (point 16). */
+export async function getEquipements() {
+  return apiFetch<Equipement[]>("/api/equipements");
+}
+
 // ══════════════════════════════════════════════════════════
 //  RÉSERVATIONS
 // ══════════════════════════════════════════════════════════
@@ -297,7 +347,7 @@ export async function annulerReservation(id: number) {
 //  PAIEMENTS
 // ══════════════════════════════════════════════════════════
 
-export async function createPaiement(payload: { reservation_id: number; mode_paiement: ModePaiement }) {
+export async function createPaiement(payload: { reservation_id: number; mode_paiement: ModePaiement; paiement_partiel?: boolean }) {
   return apiFetch<{ message: string; paiement: { id: number; montant: number }; details: Record<string, unknown> }>(
     "/api/paiements",
     { method: "POST", body: JSON.stringify(payload) }
@@ -417,4 +467,30 @@ export async function getAnnoncesAdmin() {
 /** Supprime une annonce quel que soit son propriétaire (Admin). */
 export async function supprimerAnnonceAdmin(id: number) {
   return apiFetch<{ message: string }>(`/api/admin/annonces/${id}`, { method: "DELETE" });
+}
+
+// ══════════════════════════════════════════════════════════
+//  HÔTE — FINANCE / GAINS   (montées sur /api/hote)
+// ══════════════════════════════════════════════════════════
+
+/** Récapitulatif des gains de l'hôte : brut, commission, net (point 9). */
+export async function getGainsHote() {
+  return apiFetch<GainsHote>("/api/hote/gains");
+}
+
+// ══════════════════════════════════════════════════════════
+//  SUPER-ADMIN — GESTION DES ADMINS   (montées sur /api/admin/admins)
+// ══════════════════════════════════════════════════════════
+
+/** Liste des administrateurs (Super-admin uniquement). */
+export async function getAdmins() {
+  return apiFetch<AdminCompte[]>("/api/admin/admins");
+}
+
+/** Crée un nouvel administrateur (Super-admin uniquement). */
+export async function creerAdmin(payload: { email: string; nom: string; prenom: string; motDePasse: string }) {
+  return apiFetch<{ message: string; utilisateur: AdminCompte }>("/api/admin/admins", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

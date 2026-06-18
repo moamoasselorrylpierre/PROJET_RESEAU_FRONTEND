@@ -40,7 +40,7 @@ const DEFAULT_AMENITIES = ["wifi", "ac", "breakfast", "security"];
 
 /** Convertit une annonce du backend vers le modèle Room de l'UI. */
 export function annonceToRoom(a: Annonce): Room {
-  const prix = Number(a.prix ?? (a as Record<string, unknown>).prixparnuit ?? 0);
+  const prix = Number(a.prix ?? a.prixparnuit ?? 0);
   const note = Number(a.note_moyenne ?? 0);
   const imgs = (a.images || []).filter(Boolean).map((u) => imageUrl(u));
   const hotel =
@@ -59,7 +59,8 @@ export function annonceToRoom(a: Annonce): Room {
     reviews: Number(a.nb_avis ?? 0),
     image: imgs[0] || FALLBACK_ROOM_IMAGE,
     images: imgs.length ? imgs : [FALLBACK_ROOM_IMAGE],
-    amenities: DEFAULT_AMENITIES,
+    // Équipements réels de l'annonce (point 16) ; repli sur une liste par défaut si vide
+    amenities: a.equipements && a.equipements.length ? a.equipements : DEFAULT_AMENITIES,
     badge:
       a.disponible === false || (a.statut && a.statut !== "DISPONIBLE")
         ? "Indisponible"
@@ -67,7 +68,7 @@ export function annonceToRoom(a: Annonce): Room {
     type: "Chambre",
     description: a.description || "Hébergement de qualité au cœur du Cameroun.",
     guests: Number(a.capacite ?? 1),
-    size: 30,
+    size: Number(a.superficie ?? 0) || 30,
   };
 }
 

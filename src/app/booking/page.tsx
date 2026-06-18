@@ -31,6 +31,7 @@ function BookingInner() {
   const [checkout, setCheckout] = useState(sp.get("checkout") || "");
   const [guests, setGuests] = useState(Number(sp.get("guests") || 2));
   const [selectedPayment, setSelectedPayment] = useState("orange");
+  const [payPartial, setPayPartial] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [ref, setRef] = useState("");
@@ -55,6 +56,7 @@ function BookingInner() {
     ? Math.max(1, Math.ceil((new Date(checkout).getTime() - new Date(checkin).getTime()) / 86400000))
     : 0;
   const total = room ? room.price * nights : 0;
+  const amountToPay = payPartial ? Math.round(total * 0.5) : total;
 
   async function handleConfirm() {
     if (!room) return;
@@ -67,7 +69,7 @@ function BookingInner() {
     const resa = await createReservation({ annonce_id: room.id, dateDebut: checkin, dateFin: checkout, nombrePersonnes: guests });
     if (resa.error || !resa.data) { showToast(resa.error || "Échec de la réservation.", "error"); setSubmitting(false); return; }
     const reservationId = resa.data.reservation.idreservation;
-    const pay = await createPaiement({ reservation_id: reservationId, mode_paiement: mode });
+    const pay = await createPaiement({ reservation_id: reservationId, mode_paiement: mode, paiement_partiel: payPartial });
     if (pay.error) {
       showToast(`Réservation créée mais paiement non finalisé : ${pay.error}. Vous pouvez payer depuis « Mes réservations ».`, "warning");
       router.push("/reservations");
@@ -140,6 +142,30 @@ function BookingInner() {
               </div>
             </div>
 
+            {total > 0 && (
+              <div className={`rounded-2xl p-7 mb-6 ${styles.paymentCard}`}>
+                <h3 className={`mb-6 ${styles.paymentTitle}`}>Montant à payer</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button type="button" onClick={() => setPayPartial(false)}
+                    className={styles.paymentOption}
+                    style={{ background: !payPartial ? "#F0F5F2" : "#fff", border: !payPartial ? "2px solid #1A3C2E" : "2px solid rgba(26,60,46,0.1)" }}>
+                    <div>
+                      <p className={styles.paymentLabel}>Payer la totalité</p>
+                      <p className={styles.paymentDesc}>{formatFCFA(total)}</p>
+                    </div>
+                  </button>
+                  <button type="button" onClick={() => setPayPartial(true)}
+                    className={styles.paymentOption}
+                    style={{ background: payPartial ? "#FFF3EC" : "#fff", border: payPartial ? "2px solid #C4622D" : "2px solid rgba(26,60,46,0.1)" }}>
+                    <div>
+                      <p className={styles.paymentLabel}>Acompte de 50%</p>
+                      <p className={styles.paymentDesc}>{formatFCFA(Math.round(total * 0.5))} maintenant · solde de {formatFCFA(total - Math.round(total * 0.5))} à l&apos;arrivée</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className={`rounded-2xl p-7 mb-6 ${styles.paymentCard}`}>
               <h3 className={`mb-6 ${styles.paymentTitle}`}>Mode de paiement</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -159,7 +185,7 @@ function BookingInner() {
             </div>
 
             <button onClick={handleConfirm} disabled={submitting} className={`w-full mb-4 ${styles.confirmBtn}`}>
-              {submitting ? "Traitement en cours…" : `Confirmer et payer ${formatFCFA(total)} →`}
+              {submitting ? "Traitement en cours…" : `Confirmer et payer ${formatFCFA(amountToPay)}${payPartial ? " (acompte)" : ""} →`}
             </button>
             <p className={styles.termsText}>
               En confirmant, vous acceptez nos <span className={styles.termsLink}>conditions générales</span>. Annulation gratuite avant 48h.
@@ -191,9 +217,15 @@ function BookingInner() {
                 ))}
               </div>
               <div className={`flex items-center justify-between pt-5 ${styles.detailDivider}`}>
-                <span className={styles.totalPaidLabel}>Total payé</span>
-                <span className={styles.totalPaidAmount}>{formatFCFA(total)}</span>
+                <span className={styles.totalPaidLabel}>{payPartial ? "Acompte payé (50%)" : "Total payé"}</span>
+                <span className={styles.totalPaidAmount}>{formatFCFA(amountToPay)}</span>
               </div>
+              {payPartial && (
+                <div className="flex items-center justify-between pt-2">
+                  <span className={styles.totalPaidLabel}>Solde à régler à l&apos;arrivée</span>
+                  <span className={styles.totalPaidAmount}>{formatFCFA(total - amountToPay)}</span>
+                </div>
+              )}
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.9 }} className="flex flex-col sm:flex-row gap-4 justify-center">
               <button onClick={() => router.push("/reservations")} className={styles.secondaryBtn}>
